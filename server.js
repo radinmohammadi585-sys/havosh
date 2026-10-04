@@ -1,24 +1,8 @@
 const http=require('http'),https=require('https'),fs=require('fs'),path=require('path'),crypto=require('crypto');
-// Load a local .env file without requiring an extra npm package.
-// This keeps API keys available after restarting the server.
-function loadDotEnv(){
-  const f=path.join(__dirname,'.env');
-  try{
-    const raw=fs.readFileSync(f,'utf8');
-    for(const line of raw.split(/\r?\n/)){
-      const m=line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
-      if(!m||m[1].startsWith('#')) continue;
-      let v=m[2];
-      if((v.startsWith('\"')&&v.endsWith('\"'))||(v.startsWith("'")&&v.endsWith("'"))) v=v.slice(1,-1);
-      if(process.env[m[1]]===undefined) process.env[m[1]]=v;
-    }
-  }catch{}
-}
-loadDotEnv();
-const PORT=Number(process.env.PORT||3000), BASE=__dirname, PUBLIC=path.join(BASE,'public');
+const PORT=Number(process.env.PORT||10000), BASE=__dirname, PUBLIC=path.join(BASE,'public');
 const MEMORY=path.join(BASE,'ai-memory.json');
 const EDITIONS={astara:['openai','anthropic'],lite:['deepseek','xai'],mios:['gemini']};
-const MODELS={openai:process.env.OPENAI_MODEL||'gpt-5.6-luna',anthropic:process.env.ANTHROPIC_MODEL||'claude-sonnet-4-5',deepseek:process.env.DEEPSEEK_MODEL||'deepseek-chat',xai:process.env.XAI_MODEL||'grok-4',gemini:process.env.GEMINI_MODEL||'gemini-2.5-flash'};
+const MODELS={openai:process.env.OPENAI_MODEL||'gpt-5.6',anthropic:process.env.ANTHROPIC_MODEL||'claude-sonnet-4-5',deepseek:process.env.DEEPSEEK_MODEL||'deepseek-chat',xai:process.env.XAI_MODEL||'grok-4',gemini:process.env.GEMINI_MODEL||'gemini-2.5-flash'};
 const keys={openai:'OPENAI_API_KEY',anthropic:'ANTHROPIC_API_KEY',deepseek:'DEEPSEEK_API_KEY',xai:'XAI_API_KEY',gemini:'GEMINI_API_KEY'};
 function jsonFile(f,d){try{return JSON.parse(fs.readFileSync(f,'utf8'))}catch{return d}}
 function save(f,d){fs.writeFileSync(f+'.tmp',JSON.stringify(d,null,2));fs.renameSync(f+'.tmp',f)}
@@ -39,10 +23,8 @@ async function ask(p,messages){const key=process.env[keys[p]];if(!key)throw new 
  const r=await reqJson(base,{headers:{Authorization:'Bearer '+key},body:{model:MODELS[p],messages,max_tokens:4096,temperature:.6}});return r.choices?.[0]?.message?.content||'';
 }
 function systemPrompt(edition){return `تو دستیار عمومی هوشمند «کاوش» هستی. حوزه پاسخ‌گویی تو محدود به سلامت نیست و می‌توانی در آموزش، ریاضی، علوم، زبان، برنامه‌نویسی، تاریخ، ایده‌پردازی، نوشتن، تحلیل، فناوری و کارهای روزمره کمک کنی. فارسی را طبیعی و دقیق پاسخ بده. برای ریاضی مرحله‌به‌مرحله حل کن. اگر اطلاعات قطعی نیست، صادقانه بگو. محتوای آموزشی و مفید را بی‌دلیل سانسور نکن. فقط در درخواست‌های واقعاً خطرناک یا سوءاستفاده‌گرانه از ارائه دستور عملیاتی خودداری کن. نسخه فعال: ${edition}.`}
-async function chat(body){const edition=EDITIONS[body.edition]?body.edition:'astara';const msgs=Array.isArray(body.messages)?body.messages.map(x=>({role:x.role==='assistant'?'assistant':'user',content:clean(x.content)})).slice(-20):[{role:'user',content:clean(body.message)}];const user=msgs.at(-1)?.content||'';const sec=safety(user);if(!sec.ok)return 'نمی‌توانم دستورالعمل عملی برای آسیب‌زدن یا سوءاستفاده ارائه کنم، اما می‌توانم دربارهٔ جنبهٔ آموزشی، ایمنی یا پیشگیری آن توضیح بدهم.';const c=calc(user);if(c!==null)return `نتیجه: ${c}`;const mem=jsonFile(MEMORY,[]).slice(0,30);const context=mem.length?'\nیادداشت‌های مرتبط قبلی:\n'+mem.map(x=>`- ${x.q} → ${x.a}`).join('\n'):'';const all=[{role:'system',content:systemPrompt(edition)+context},...msgs];let errors=[];for(const p of EDITIONS[edition]){if(!configured(p))continue;try{const answer=await ask(p,all);if(answer){if(body.learn!==false){const arr=jsonFile(MEMORY,[]);arr.unshift({q:user,a:clean(answer).slice(0,8000),provider:p,edition,at:new Date().toISOString()});save(MEMORY,arr.slice(0,1000))}return answer}}catch(e){errors.push(p+': '+e.message)}}
-return errors.length
-  ? 'هیچ سرویس هوش مصنوعی پاسخ نداد. خطاها: '+errors.join(' | ')
-  : 'برای این نسخه هنوز API Key تنظیم نشده است.'}
+async function chat(body){const edition=EDITIONS[body.edition]?body.edition:'astara';const msgs=Array.isArray(body.messages)?body.messages.map(x=>({role:x.role==='assistant'?'assistant':'user',content:clean(x.content)})).slice(-20):[{role:'user',content:clean(body.message)}];const user=msgs.at(-1)?.content||'';const sec=safety(user);if(!sec.ok)return 'نمی‌توانم دستورالعمل عملی برای آسیب‌زدن یا سوءاستفاده ارائه کنم، اما می‌توانم دربارهٔ جنبهٔ آموزشی، ایمنی یا پیشگیری آن توضیح بدهم.';const c=calc(user);if(c!==null)return `نتیجه: ${c}`;const mem=jsonFile(MEMORY,[]).slice(0,30);const context=mem.length?'\nیادداشت‌های مرتبط قبلی:\n'+mem.map(x=>`- ${x.q} → ${x.a}`).join('\n'):'';const all=[{role:'system',content:systemPrompt(edition)+context},...msgs];let lastErr='';for(const p of EDITIONS[edition]){if(!configured(p))continue;try{const answer=await ask(p,all);if(answer){if(body.learn!==false){const arr=jsonFile(MEMORY,[]);arr.unshift({q:user,a:clean(answer).slice(0,8000),provider:p,edition,at:new Date().toISOString()});save(MEMORY,arr.slice(0,1000))}return answer}}catch(e){lastErr=e.message}}
+return lastErr?'هیچ سرویس هوش مصنوعیِ تنظیم‌شده‌ای پاسخ نداد: '+lastErr:'برای این نسخه هنوز API Key تنظیم نشده است.'}
 function send(res,status,obj){const d=JSON.stringify(obj);res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*'});res.end(d)}
 const server=http.createServer(async(req,res)=>{if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Methods':'GET,POST,OPTIONS'});return res.end()}
  if(req.url==='/api/health')return send(res,200,{ok:true,name:'Kavosh',version:'3.0.0',editions:Object.keys(EDITIONS)});
@@ -50,4 +32,4 @@ const server=http.createServer(async(req,res)=>{if(req.method==='OPTIONS'){res.w
  if(req.url==='/api/memory'&&req.method==='GET')return send(res,200,{items:jsonFile(MEMORY,[]).slice(0,100)});
  let u=new URL(req.url,'http://localhost');let file=decodeURIComponent(u.pathname);if(file==='/')file='/index.html';let p=path.normalize(path.join(PUBLIC,file));if(!p.startsWith(PUBLIC))return send(res,403,{error:'forbidden'});fs.readFile(p,(e,d)=>{if(e){res.writeHead(404);return res.end('Not found')}const ext=path.extname(p);const ct={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json'}[ext]||'application/octet-stream';res.writeHead(200,{'Content-Type':ct});res.end(d)})
 });
-server.listen(PORT,()=>console.log(`Kavosh 3.0 running on http://localhost:${PORT}`));
+server.listen(PORT,'0.0.0.0',()=>console.log(`Kavosh 3.0 running on port ${PORT}`));
