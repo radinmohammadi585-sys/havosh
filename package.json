@@ -1,1 +1,12 @@
-{"name":"kavosh-ai","version":"3.0.0","private":true,"description":"Kavosh general-purpose multi-AI assistant","main":"server.js","scripts":{"start":"node server.js","dev":"node server.js"},"engines":{"node":">=18"},"dependencies":{}}
+{
+  "name": "kavosh",
+  "version": "3.4.0",
+  "description": "Kavosh AI assistant",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
