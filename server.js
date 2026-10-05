@@ -67,7 +67,8 @@ function reqJson(url,opts={}){return new Promise((res,rej)=>{
       if(x.statusCode<200||x.statusCode>=300)return rej(new Error(j?.error?.message||j?.message||('HTTP '+x.statusCode)));
       res(j)});
   });
-  r.on('timeout',()=>r.destroy(new Error('timeout')));r.on('error',rej);
+  r.on('timeout',()=>r.destroy(new Error('timeout: سرور پاسخ نداد')));
+  r.on('error',e=>rej(new Error(e.code?e.message+' ('+e.code+')':e.message)));
   if((opts.method||'POST')!=='GET')r.write(JSON.stringify(opts.body||{}));
   r.end();
 })}
@@ -126,22 +127,48 @@ function wantSearch(mode,text){
 
 // ---------- LLM call ----------
 async function ask(p,messages,opt){
-  const key=process.env[keys[p]];
-  if(!key)throw new Error('no key');
+  const secret_key=process.env[keys[p]];
+  if(!secret_key)throw new Error(p+': کلید API تنظیم نشده است ('+keys[p]+')');
   const maxTokens=opt.maxTokens,temperature=opt.temperature;
   if(p==='anthropic'){
     const r=await reqJson('https://api.anthropic.com/v1/messages',{headers:{'x-api-key':key,'anthropic-version':'2023-06-01'},body:{model:MODELS[p],max_tokens:maxTokens,temperature,messages:messages.filter(x=>x.role!=='system'),system:messages.find(x=>x.role==='system')?.content}});
     return r.content?.map(x=>x.text||'').join('')||'';
   }
   if(p==='gemini'){
-    const q=messages.filter(x=>x.role!=='system').map(x=>({role:x.role==='assistant'?'model':'user',parts:[{text:x.content}]}));
     const sys=messages.find(x=>x.role==='system')?.content;
-    if(sys)q.unshift({role:'user',parts:[{text:sys}]});
-    const r=await reqJson('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(MODELS[p])+':generateContent?key='+encodeURIComponent(key),{body:{contents:q,generationConfig:{temperature,maxOutputTokens:maxTokens}}});
-    return r.candidates?.[0]?.content?.parts?.map(x=>x.text||'').join('')||'';
+    const contents=messages.filter(x=>x.role!=='system').map(x=>({role:x.role==='assistant'?'model':'user',parts:[{text:x.content}]}));
+    const body={contents,generationConfig:{temperature,maxOutputTokens:maxTokens}};
+    if(sys)body.systemInstruction={parts:[{text:sys}]};
+    if(!contents.length)throw new Error('gemini: no content in request');
+    let r;
+    try{
+      r=await reqJson('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(MODELS[p])+':generateContent',{headers:{'x-goog-api-key':secret_key},body});
+    }catch(e){
+      // retry once with key in query string (older proxy setups)
+      try{
+        r=await reqJson('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(MODELS[p])+':generateContent?key='+encodeURIComponent(secret_key),{body});
+      }catch(e2){
+        const code=(e2.message||'').match(/HTTP (\d{3})/)?.[1];
+        const hint=code==='400'?' (کلید API یا نام مدل Gemini نامعتبر است)':
+                   code==='403'?' (کلید Gemini اجازهٔ دسترسی به این مدل را ندارد)':
+                   code==='429'?' (محدودیت نرخ Gemini؛ بعداً تلاش کنید)':
+                   code==='404'?' (مدل Gemini پیدا نشد؛ GEMINI_MODEL را بررسی کنید)':'';
+        throw new Error('gemini: '+(e2.message||'request failed')+hint);
+      }
+    }
+    if(r.promptFeedback?.blockReason)throw new Error('gemini: درخواست توسط فیلتر ایمنی رد شد ('+r.promptFeedback.blockReason+')');
+    const cand=r.candidates?.[0];
+    const txt=cand?.content?.parts?.map(x=>x.text||'').join('')||'';
+    if(!txt){
+      const fr=cand?.finishReason;
+      if(fr&&fr!=='STOP')throw new Error('gemini: پاسخی تولید نشد (finishReason: '+fr+(cand?.safetyRatings?', safety: '+JSON.stringify(cand.safetyRatings):'')+')');
+      if(r.blockReason)throw new Error('gemini: پاسخ مسدود شد ('+r.blockReason+')');
+      throw new Error('gemini: پاسخ خالی از سرور دریافت شد');
+    }
+    return txt;
   }
   const url=p==='openrouter'?'https://openrouter.ai/api/v1/chat/completions':p==='openai'?'https://api.openai.com/v1/chat/completions':p==='deepseek'?'https://api.deepseek.com/chat/completions':'https://api.x.ai/v1/chat/completions';
-  const headers={Authorization:'Bearer '+key};
+  const headers={Authorization:'Bearer '+secret_key};
   if(p==='openrouter'){headers['HTTP-Referer']=process.env.SITE_URL||'https://kavosh.onrender.com';headers['X-Title']='Kavosh'}
   const r=await reqJson(url,{headers,body:{model:MODELS[p],messages,max_tokens:maxTokens,temperature}});
   return r.choices?.[0]?.message?.content||'';
@@ -196,7 +223,11 @@ async function chat(body){
         }
         return {answer,sources,searched:sources.length>0};
       }
-    }catch(e){errors.push(p+': '+e.message)}
+    }catch(e){
+      const msg=p+': '+e.message;
+      console.error('[chat]',new Date().toISOString(),msg);
+      errors.push(msg);
+    }
   }
   if(errors.length)return {answer:'سرویس هوش مصنوعی در دسترس نبود. دوباره تلاش کن. ('+errors.join(' | ')+')',sources};
   return {answer:'کاوش فعلاً به موتور هوش مصنوعی وصل نیست. مدیر سایت باید یک API Key در تنظیمات سرور (Environment) قرار دهد.',sources};
@@ -259,7 +290,7 @@ const server=http.createServer((req,res)=>{
   if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Methods':'GET,POST,OPTIONS'});return res.end()}
   let pn;try{pn=decodeURIComponent(new URL(req.url,'http://localhost').pathname)}catch{return send(res,400,{error:'bad url'})}
   if(pn.length>1)pn=pn.replace(/\/+$/,'');
-  if(pn==='/api/health')return send(res,200,{ok:true,name:'Kavosh',version:'3.4.0',editions:Object.fromEntries(Object.keys(POWER).map(k=>[k,POWER[k]+'%'])),providers:ORDER.filter(configured),search:process.env.TAVILY_API_KEY?'tavily':'duckduckgo+wikipedia',image:configured('openai')?'openai':'pollinations',video:process.env.REPLICATE_API_TOKEN?'replicate':'off'});
+  if(pn==='/api/health')return send(res,200,{ok:true,name:'Kavosh',version:'3.5.0',editions:Object.fromEntries(Object.keys(POWER).map(k=>[k,POWER[k]+'%'])),providers:ORDER.filter(configured),search:process.env.TAVILY_API_KEY?'tavily':'duckduckgo+wikipedia',image:configured('openai')?'openai':'pollinations',video:process.env.REPLICATE_API_TOKEN?'replicate':'off'});
   if(pn==='/api/ai-chat'){
     if(req.method!=='POST')return send(res,405,{ok:false,error:'از روش POST استفاده کنید'});
     let b='';req.on('data',c=>{b+=c;if(b.length>500000)req.destroy()});
@@ -295,5 +326,8 @@ const server=http.createServer((req,res)=>{
     res.writeHead(200,{'Content-Type':CT[path.extname(p)]||'application/octet-stream'});res.end(d);
   });
 });
-if(require.main===module)server.listen(PORT,'0.0.0.0',()=>console.log(`Kavosh 3.4 running on http://localhost:${PORT}`));
+process.on('uncaughtException',e=>console.error('[uncaught]',new Date().toISOString(),e.stack||e.message));
+process.on('unhandledRejection',e=>console.error('[unhandledRejection]',new Date().toISOString(),e?.stack||e?.message||e));
+server.on('error',e=>{console.error('[server]',e.message);process.exit(1)});
+if(require.main===module)server.listen(PORT,'0.0.0.0',()=>console.log(`Kavosh 3.5 running on http://localhost:${PORT}`));
 module.exports={tune,webSearch,wantSearch,chat};
