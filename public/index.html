@@ -8,9 +8,10 @@
 *{box-sizing:border-box}
 body{margin:0;background:#070b1d;color:#e9eaff;font-family:tahoma}
 .app{min-height:100vh;display:flex;flex-direction:column}
-.header{padding:22px;border-bottom:1px solid #252b4b;display:flex;justify-content:space-between;align-items:center}
+.header{padding:22px;border-bottom:1px solid #252b4b;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .logo{font-size:28px;font-weight:bold}
 .sub{color:#9aa1c7;font-size:14px}
+.tools{display:flex;gap:10px;flex-wrap:wrap}
 select{background:#121936;color:white;border:1px solid #38406b;border-radius:18px;padding:12px}
 .main{flex:1;text-align:center;padding:50px 25px}
 .brain{font-size:55px}
@@ -22,6 +23,9 @@ p{color:#b5bbd8;font-size:20px;line-height:2}
 .msg{padding:12px;border-radius:16px;margin:10px;white-space:pre-wrap;line-height:1.9}
 .user{background:#6d5dfc;margin-right:40px}
 .ai{background:#121936;margin-left:40px}
+.src{margin:-4px 50px 10px;font-size:13px;line-height:2;color:#9aa1c7}
+.src a{color:#8fa2ff;margin-left:12px;text-decoration:none;display:inline-block}
+.src a:hover{text-decoration:underline}
 .bottom{padding:18px;border-top:1px solid #252b4b;display:flex;gap:10px}
 input{flex:1;background:#111832;color:white;border:1px solid #39406b;border-radius:20px;padding:15px}
 .send{background:#6d5dfc;color:white;border:0;border-radius:15px;padding:15px 25px;cursor:pointer}
@@ -35,22 +39,29 @@ input{flex:1;background:#111832;color:white;border:1px solid #39406b;border-radi
 <div class="app">
 <div class="header">
 <div><div class="logo">کاوش ✨</div><div class="sub">دستیار هوشمند عمومی</div></div>
+<div class="tools">
+<select id="search" title="جستجوی وب">
+<option value="auto">🌐 جستجوی وب: خودکار</option>
+<option value="on">🌐 جستجوی وب: همیشه</option>
+<option value="off">🌐 جستجوی وب: خاموش</option>
+</select>
 <select id="mode">
 <option value="lite">⚡ Lite (سریع)</option>
 <option value="mios">🧠 MIOS</option>
-<option value="astara">✨ Astara</option>
+<option value="astara" selected>✨ Astara (کامل)</option>
 </select>
+</div>
 </div>
 
 <div class="main" id="welcome">
 <div class="brain">🧠</div>
 <h1>سلام! من کاوشم.</h1>
-<p>برای درس، ریاضی، برنامه‌نویسی، زبان، ایده‌پردازی و تحقیق در کنارت هستم.</p>
+<p>برای درس، ریاضی، برنامه‌نویسی، زبان، ایده‌پردازی و تحقیق در کنارت هستم. اخبار و اطلاعات به‌روز را هم از وب پیدا می‌کنم.</p>
 <div class="chips">
 <button>یک مسئله ریاضی حل کن</button>
 <button>این متن را خلاصه کن</button>
 <button>پایتون یادم بده</button>
-<button>یک ایده خلاقانه بده</button>
+<button>آخرین اخبار فناوری چیست؟</button>
 </div>
 </div>
 
@@ -65,7 +76,7 @@ input{flex:1;background:#111832;color:white;border:1px solid #39406b;border-radi
 
 <script>
 // وقتی صفحه از خود سرور باز شود، خودکار به همان سرور وصل می‌شود.
-// اگر فایل را مستقیم (file://) باز کنید، به آدرس پایین وصل می‌شود.
+// اگر فایل را مستقیم (file://) باز کنید، به آدرس زیر وصل می‌شود.
 const REMOTE_URL = "https://havosh.onrender.com/api/ai-chat";
 const API_URL = location.protocol.startsWith("http") ? "/api/ai-chat" : REMOTE_URL;
 
@@ -74,6 +85,7 @@ const welcome = document.getElementById('welcome');
 const think = document.getElementById('think');
 const msg = document.getElementById('msg');
 const mode = document.getElementById('mode');
+const searchSel = document.getElementById('search');
 const sendBtn = document.getElementById('sendBtn');
 const history = [];
 
@@ -82,6 +94,21 @@ function add(text, cls){
   d.className = 'msg ' + cls;
   d.textContent = text;
   chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+function addSources(list){
+  if(!Array.isArray(list) || !list.length) return;
+  const box = document.createElement('div');
+  box.className = 'src';
+  box.append('منابع: ');
+  list.forEach((s, i) => {
+    if(!/^https?:\/\//.test(s.url)) return;
+    const a = document.createElement('a');
+    a.href = s.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.textContent = '[' + (i + 1) + '] ' + (s.title || s.url).slice(0, 60);
+    box.appendChild(a);
+  });
+  chat.appendChild(box);
   chat.scrollTop = chat.scrollHeight;
 }
 
@@ -99,10 +126,9 @@ async function send(){
     const res = await fetch(API_URL, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ messages: history.slice(-20), edition: mode.value })
+      body: JSON.stringify({ messages: history.slice(-20), edition: mode.value, search: searchSel.value })
     });
-    let data = {};
-    let raw = "";
+    let data = {}, raw = "";
     try{ raw = await res.text(); data = JSON.parse(raw); }catch(e){}
     let out = data.answer;
     if(!out){
@@ -111,6 +137,7 @@ async function send(){
       history.push({role:"assistant", content:out});
     }
     add(out, "ai");
+    addSources(data.sources);
   }catch(err){
     add("اتصال به سرور برقرار نشد. اگر سرور Render تازه بیدار شده، چند ثانیه صبر کن و دوباره بفرست.", "ai");
   }finally{
