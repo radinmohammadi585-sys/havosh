@@ -15,6 +15,7 @@ function loadDotEnv(){
 }
 loadDotEnv();
 
+const {solve:solveMath,plainMath,looksMath}=require('./math.js');
 const PORT=Number(process.env.PORT||3000), BASE=__dirname, PUBLIC=path.join(BASE,'public');
 const MEMORY=path.join(BASE,'ai-memory.json');
 
@@ -51,13 +52,6 @@ function tune(edition){
 const jsonFile=(f,d)=>{try{return JSON.parse(fs.readFileSync(f,'utf8'))}catch{return d}};
 const save=(f,d)=>{fs.writeFileSync(f+'.tmp',JSON.stringify(d,null,2));fs.renameSync(f+'.tmp',f)};
 const clean=s=>String(s??'').replace(/\0/g,'').trim().slice(0,30000);
-function faDigits(s){const fa='۰۱۲۳۴۵۶۷۸۹',ar='٠١٢٣٤٥٦٧٨٩';return String(s).replace(/[۰-۹]/g,x=>fa.indexOf(x)).replace(/[٠-٩]/g,x=>ar.indexOf(x))}
-function calc(s){
-  let t=faDigits(s).replace(/\s+/g,'').replace(/جمع|بعلاوه|به‌علاوه|به علاوه|plus/gi,'+').replace(/منهای|منهایِ|منها|minus/gi,'-').replace(/ضربدر|ضرب|در|times/gi,'*').replace(/تقسیمبر|تقسیم‌بر|تقسیم/gi,'/').replace(/×/g,'*').replace(/÷/g,'/').replace(/،/g,'.').replace(/,/g,'.');
-  if(!/^[0-9+*/().\-]+$/.test(t)||!/[+*/\-]/.test(t)) return null;
-  try{const v=Function('"use strict";return ('+t+')')();if(typeof v==='number'&&Number.isFinite(v))return String(Number.isInteger(v)?v:Number(v.toFixed(10)))}catch{}
-  return null;
-}
 function safety(s){
   const t=clean(s).toLowerCase();
   const bad=[/ساخت.{0,25}(بمب|مواد منفجره|سلاح)/,/build.{0,30}(bomb|explosive|weapon)/,/سرقت.{0,30}(رمز|پسورد|اکانت)/,/(steal|phish).{0,30}(password|account|token)/,/خودکشی.{0,30}(روش|چگونه|چطور)/,/(suicide|self.?harm).{0,30}(how|method|instructions)/,/پورنو.{0,20}(کودک|نوجوان)/];
@@ -153,24 +147,31 @@ async function ask(p,messages,opt){
   return r.choices?.[0]?.message?.content||'';
 }
 
-const systemPrompt=(edition)=>`تو دستیار عمومی هوشمند «کاوش» هستی. حوزه پاسخ‌گویی تو محدود به سلامت نیست و می‌توانی در آموزش، ریاضی، علوم، زبان، برنامه‌نویسی، تاریخ، ایده‌پردازی، نوشتن، تحلیل، فناوری و کارهای روزمره کمک کنی. فارسی را طبیعی و دقیق پاسخ بده. برای ریاضی مرحله‌به‌مرحله حل کن. اگر اطلاعات قطعی نیست، صادقانه بگو. محتوای آموزشی و مفید را بی‌دلیل سانسور نکن. فقط در درخواست‌های واقعاً خطرناک یا سوءاستفاده‌گرانه از ارائه دستور عملیاتی خودداری کن. نسخه فعال: ${edition}.`;
+const systemPrompt=(edition)=>`تو دستیار عمومی هوشمند «کاوش» هستی. حوزه پاسخ‌گویی تو محدود به سلامت نیست و می‌توانی در آموزش، ریاضی، علوم، زبان، برنامه‌نویسی، تاریخ، ایده‌پردازی، نوشتن، تحلیل، فناوری و کارهای روزمره کمک کنی. فارسی را طبیعی و دقیق پاسخ بده. برای ریاضی مرحله‌به‌مرحله حل کن. اگر اطلاعات قطعی نیست، صادقانه بگو. محتوای آموزشی و مفید را بی‌دلیل سانسور نکن. فقط در درخواست‌های واقعاً خطرناک یا سوءاستفاده‌گرانه از ارائه دستور عملیاتی خودداری کن. ریاضی را با متن ساده و نمادهای یونیکد بنویس (×، ÷، √، ²، ≤، π) و هرگز از LaTeX، علامت دلار یا بک‌اسلش استفاده نکن. نسخه فعال: ${edition}.`;
 
 async function chat(body){
   const req=body.edition||body.mode;
   const edition=POWER[req]!==undefined?req:'astara';
-  const t=tune(edition);
+  let t=tune(edition);
   const msgs=Array.isArray(body.messages)
     ?body.messages.map(x=>({role:x.role==='assistant'?'assistant':'user',content:clean(x.content)})).filter(x=>x.content).slice(-t.history)
     :[{role:'user',content:clean(body.message)}];
   const user=msgs.at(-1)?.content||'';
   if(!user)return {answer:'پیامی دریافت نشد.'};
   if(!safety(user).ok)return {answer:'نمی‌توانم دستورالعمل عملی برای آسیب‌زدن یا سوءاستفاده ارائه کنم، اما می‌توانم دربارهٔ جنبهٔ آموزشی، ایمنی یا پیشگیری آن توضیح بدهم.'};
-  const c=calc(user);
-  if(c!==null)return {answer:`نتیجه: ${c}`};
+  const c=solveMath(user);
+  if(c!==null)return {answer:c};
+
+  // math problems: low temperature, enough room for step-by-step work, no web search unless forced
+  const isMath=looksMath(user);
+  if(isMath){
+    t={...t,temperature:0.2,maxTokens:Math.max(t.maxTokens,2400),
+      style:t.style+' این یک مسئله ریاضی است: مرحله‌به‌مرحله حل کن، هر محاسبه را یک بار دوباره بررسی کن و پاسخ نهایی را در یک خط جدا با عنوان «پاسخ:» بنویس.'};
+  }
 
   // web search
   let sources=[],searchCtx='';
-  if(wantSearch(body.search,user)){
+  if(wantSearch(isMath&&body.search!=='on'&&body.search!==true?'off':body.search,user)){
     sources=await webSearch(user,t.results);
     if(sources.length){
       searchCtx='\n\nنتایج جستجوی وب (امروز: '+new Date().toISOString().slice(0,10)+'). برای اطلاعات به‌روز از این نتایج استفاده کن، در متن به منبع اشاره کن و اگر نتایج کافی نیستند صادقانه بگو:\n'+
@@ -186,7 +187,7 @@ async function chat(body){
   for(const p of ORDER){
     if(!configured(p))continue;
     try{
-      const answer=await ask(p,all,t);
+      const answer=plainMath(await ask(p,all,t));
       if(answer){
         if(body.learn!==false&&!searchCtx){
           const arr=jsonFile(MEMORY,[]);
@@ -258,7 +259,7 @@ const server=http.createServer((req,res)=>{
   if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Methods':'GET,POST,OPTIONS'});return res.end()}
   let pn;try{pn=decodeURIComponent(new URL(req.url,'http://localhost').pathname)}catch{return send(res,400,{error:'bad url'})}
   if(pn.length>1)pn=pn.replace(/\/+$/,'');
-  if(pn==='/api/health')return send(res,200,{ok:true,name:'Kavosh',version:'3.2.0',editions:Object.fromEntries(Object.keys(POWER).map(k=>[k,POWER[k]+'%'])),providers:ORDER.filter(configured),search:process.env.TAVILY_API_KEY?'tavily':'duckduckgo+wikipedia',image:configured('openai')?'openai':'pollinations',video:process.env.REPLICATE_API_TOKEN?'replicate':'off'});
+  if(pn==='/api/health')return send(res,200,{ok:true,name:'Kavosh',version:'3.4.0',editions:Object.fromEntries(Object.keys(POWER).map(k=>[k,POWER[k]+'%'])),providers:ORDER.filter(configured),search:process.env.TAVILY_API_KEY?'tavily':'duckduckgo+wikipedia',image:configured('openai')?'openai':'pollinations',video:process.env.REPLICATE_API_TOKEN?'replicate':'off'});
   if(pn==='/api/ai-chat'){
     if(req.method!=='POST')return send(res,405,{ok:false,error:'از روش POST استفاده کنید'});
     let b='';req.on('data',c=>{b+=c;if(b.length>500000)req.destroy()});
@@ -294,5 +295,5 @@ const server=http.createServer((req,res)=>{
     res.writeHead(200,{'Content-Type':CT[path.extname(p)]||'application/octet-stream'});res.end(d);
   });
 });
-if(require.main===module)server.listen(PORT,'0.0.0.0',()=>console.log(`Kavosh 3.2 running on http://localhost:${PORT}`));
+if(require.main===module)server.listen(PORT,'0.0.0.0',()=>console.log(`Kavosh 3.4 running on http://localhost:${PORT}`));
 module.exports={tune,webSearch,wantSearch,chat};
