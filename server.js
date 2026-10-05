@@ -131,7 +131,7 @@ async function ask(p,messages,opt){
   if(!secret_key)throw new Error(p+': کلید API تنظیم نشده است ('+keys[p]+')');
   const maxTokens=opt.maxTokens,temperature=opt.temperature;
   if(p==='anthropic'){
-    const r=await reqJson('https://api.anthropic.com/v1/messages',{headers:{'x-api-key':key,'anthropic-version':'2023-06-01'},body:{model:MODELS[p],max_tokens:maxTokens,temperature,messages:messages.filter(x=>x.role!=='system'),system:messages.find(x=>x.role==='system')?.content}});
+    const r=await reqJson('https://api.anthropic.com/v1/messages',{headers:{'x-api-key':secret_key,'anthropic-version':'2023-06-01'},body:{model:MODELS[p],max_tokens:maxTokens,temperature,messages:messages.filter(x=>x.role!=='system'),system:messages.find(x=>x.role==='system')?.content}});
     return r.content?.map(x=>x.text||'').join('')||'';
   }
   if(p==='gemini'){
