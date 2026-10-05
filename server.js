@@ -67,14 +67,15 @@ function safety(s){
 // ---------- HTTP ----------
 function reqJson(url,opts={}){return new Promise((res,rej)=>{
   const u=new URL(url),lib=u.protocol==='https:'?https:http;
-  const r=lib.request(u,{method:opts.method||'POST',headers:{'Content-Type':'application/json',...(opts.headers||{})},timeout:60000},x=>{
+  const r=lib.request(u,{method:opts.method||'POST',headers:{'Content-Type':'application/json',...(opts.headers||{})},timeout:opts.timeout||60000},x=>{
     let d='';x.setEncoding('utf8');x.on('data',c=>d+=c);
     x.on('end',()=>{let j;try{j=JSON.parse(d)}catch{j={raw:d}}
       if(x.statusCode<200||x.statusCode>=300)return rej(new Error(j?.error?.message||j?.message||('HTTP '+x.statusCode)));
       res(j)});
   });
   r.on('timeout',()=>r.destroy(new Error('timeout')));r.on('error',rej);
-  r.write(JSON.stringify(opts.body||{}));r.end();
+  if((opts.method||'POST')!=='GET')r.write(JSON.stringify(opts.body||{}));
+  r.end();
 })}
 function getText(url,redirects=3){return new Promise((res,rej)=>{
   const u=new URL(url),lib=u.protocol==='https:'?https:http;
@@ -200,6 +201,56 @@ async function chat(body){
   return {answer:'کاوش فعلاً به موتور هوش مصنوعی وصل نیست. مدیر سایت باید یک API Key در تنظیمات سرور (Environment) قرار دهد.',sources};
 }
 
+// ---------- image & video generation ----------
+const IMAGE_MODEL=process.env.IMAGE_MODEL||'gpt-image-1';
+const VIDEO_MODEL=process.env.VIDEO_MODEL||'minimax/video-01';   // Replicate model (owner/name)
+const firstChatProvider=()=>ORDER.find(configured);
+// Persian prompts give better pictures when translated to English first (only if a chat key exists).
+async function englishPrompt(text){
+  const p=firstChatProvider();
+  if(!p||!/[؀-ۿ]/.test(text))return text;
+  try{
+    const out=await ask(p,[
+      {role:'system',content:'Translate the user text into a vivid, detailed English prompt for an image/video generator. Output only the prompt, no quotes or explanations.'},
+      {role:'user',content:text}],{maxTokens:300,temperature:0.4});
+    return clean(out).slice(0,900)||text;
+  }catch{return text}
+}
+async function makeImage(prompt){
+  prompt=clean(prompt).slice(0,1500);
+  if(!prompt)throw new Error('توضیح تصویر خالی است');
+  if(!safety(prompt).ok)throw new Error('این درخواست مجاز نیست.');
+  const en=await englishPrompt(prompt);
+  if(configured('openai')){
+    const r=await reqJson('https://api.openai.com/v1/images/generations',{headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY},timeout:120000,body:{model:IMAGE_MODEL,prompt:en,size:'1024x1024'}});
+    const d=r.data?.[0];
+    if(d?.b64_json)return {image:'data:image/png;base64,'+d.b64_json,provider:'openai'};
+    if(d?.url)return {image:d.url,provider:'openai'};
+    throw new Error('پاسخ تصویر خالی بود');
+  }
+  // keyless fallback (free service; the browser loads the picture directly)
+  const seed=Math.floor(Math.random()*1e9);
+  return {image:'https://image.pollinations.ai/prompt/'+encodeURIComponent(en)+'?width=1024&height=1024&nologo=true&seed='+seed,provider:'pollinations'};
+}
+async function startVideo(prompt){
+  prompt=clean(prompt).slice(0,1500);
+  if(!prompt)throw new Error('توضیح ویدیو خالی است');
+  if(!safety(prompt).ok)throw new Error('این درخواست مجاز نیست.');
+  if(!process.env.REPLICATE_API_TOKEN)throw new Error('تولید ویدیو فعال نیست: مدیر سایت باید REPLICATE_API_TOKEN را در تنظیمات سرور قرار دهد.');
+  const en=await englishPrompt(prompt);
+  const r=await reqJson('https://api.replicate.com/v1/models/'+VIDEO_MODEL+'/predictions',{headers:{Authorization:'Bearer '+process.env.REPLICATE_API_TOKEN},timeout:60000,body:{input:{prompt:en}}});
+  if(!r.id)throw new Error('شروع تولید ویدیو ناموفق بود');
+  return {id:r.id};
+}
+async function videoStatus(id){
+  if(!/^[a-z0-9]{6,64}$/i.test(id||''))throw new Error('شناسه نامعتبر');
+  if(!process.env.REPLICATE_API_TOKEN)throw new Error('REPLICATE_API_TOKEN تنظیم نشده است');
+  const r=await reqJson('https://api.replicate.com/v1/predictions/'+id,{method:'GET',headers:{Authorization:'Bearer '+process.env.REPLICATE_API_TOKEN}});
+  if(r.status==='succeeded'){const o=Array.isArray(r.output)?r.output[0]:r.output;return {status:'done',video:o}}
+  if(r.status==='failed'||r.status==='canceled')return {status:'failed',error:String(r.error||'تولید ویدیو ناموفق بود').slice(0,200)};
+  return {status:'working'};
+}
+
 // ---------- server ----------
 function send(res,status,obj){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*'});res.end(JSON.stringify(obj))}
 const CT={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.ico':'image/x-icon'};
@@ -207,11 +258,25 @@ const server=http.createServer((req,res)=>{
   if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Methods':'GET,POST,OPTIONS'});return res.end()}
   let pn;try{pn=decodeURIComponent(new URL(req.url,'http://localhost').pathname)}catch{return send(res,400,{error:'bad url'})}
   if(pn.length>1)pn=pn.replace(/\/+$/,'');
-  if(pn==='/api/health')return send(res,200,{ok:true,name:'Kavosh',version:'3.1.0',editions:Object.fromEntries(Object.keys(POWER).map(k=>[k,POWER[k]+'%'])),providers:ORDER.filter(configured),search:process.env.TAVILY_API_KEY?'tavily':'duckduckgo+wikipedia'});
+  if(pn==='/api/health')return send(res,200,{ok:true,name:'Kavosh',version:'3.2.0',editions:Object.fromEntries(Object.keys(POWER).map(k=>[k,POWER[k]+'%'])),providers:ORDER.filter(configured),search:process.env.TAVILY_API_KEY?'tavily':'duckduckgo+wikipedia',image:configured('openai')?'openai':'pollinations',video:process.env.REPLICATE_API_TOKEN?'replicate':'off'});
   if(pn==='/api/ai-chat'){
     if(req.method!=='POST')return send(res,405,{ok:false,error:'از روش POST استفاده کنید'});
     let b='';req.on('data',c=>{b+=c;if(b.length>500000)req.destroy()});
     req.on('end',async()=>{try{send(res,200,{ok:true,...await chat(JSON.parse(b||'{}'))})}catch(e){send(res,500,{ok:false,error:e.message})}});
+    return;
+  }
+  if(pn==='/api/image'||pn==='/api/video'){
+    if(req.method!=='POST')return send(res,405,{ok:false,error:'از روش POST استفاده کنید'});
+    let b='';req.on('data',c=>{b+=c;if(b.length>100000)req.destroy()});
+    req.on('end',async()=>{try{
+      const body=JSON.parse(b||'{}');
+      send(res,200,{ok:true,...(pn==='/api/image'?await makeImage(body.prompt):await startVideo(body.prompt))});
+    }catch(e){send(res,200,{ok:false,error:e.message})}});
+    return;
+  }
+  if(pn==='/api/video-status'&&req.method==='GET'){
+    const id=new URL(req.url,'http://localhost').searchParams.get('id');
+    videoStatus(id).then(r=>send(res,200,{ok:true,...r})).catch(e=>send(res,200,{ok:false,error:e.message}));
     return;
   }
   if(pn==='/api/memory'&&req.method==='GET')return send(res,200,{items:jsonFile(MEMORY,[]).slice(0,100)});
@@ -229,5 +294,5 @@ const server=http.createServer((req,res)=>{
     res.writeHead(200,{'Content-Type':CT[path.extname(p)]||'application/octet-stream'});res.end(d);
   });
 });
-if(require.main===module)server.listen(PORT,'0.0.0.0',()=>console.log(`Kavosh 3.1 running on http://localhost:${PORT}`));
+if(require.main===module)server.listen(PORT,'0.0.0.0',()=>console.log(`Kavosh 3.2 running on http://localhost:${PORT}`));
 module.exports={tune,webSearch,wantSearch,chat};
