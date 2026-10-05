@@ -26,6 +26,8 @@ p{color:#b5bbd8;font-size:20px;line-height:2}
 .src{margin:-4px 50px 10px;font-size:13px;line-height:2;color:#9aa1c7}
 .src a{color:#8fa2ff;margin-left:12px;text-decoration:none;display:inline-block}
 .src a:hover{text-decoration:underline}
+.media{display:block;max-width:100%;border-radius:14px;margin-top:10px}
+.dl{display:inline-block;margin-top:8px;color:#8fa2ff;font-size:13px}
 .bottom{padding:18px;border-top:1px solid #252b4b;display:flex;gap:10px}
 input{flex:1;background:#111832;color:white;border:1px solid #39406b;border-radius:20px;padding:15px}
 .send{background:#6d5dfc;color:white;border:0;border-radius:15px;padding:15px 25px;cursor:pointer}
@@ -40,6 +42,11 @@ input{flex:1;background:#111832;color:white;border:1px solid #39406b;border-radi
 <div class="header">
 <div><div class="logo">کاوش ✨</div><div class="sub">دستیار هوشمند عمومی</div></div>
 <div class="tools">
+<select id="kind" title="نوع خروجی">
+<option value="chat">💬 گفتگو</option>
+<option value="image">🖼️ ساخت تصویر</option>
+<option value="video">🎬 ساخت ویدیو</option>
+</select>
 <select id="search" title="جستجوی وب">
 <option value="auto">🌐 جستجوی وب: خودکار</option>
 <option value="on">🌐 جستجوی وب: همیشه</option>
@@ -87,7 +94,10 @@ const msg = document.getElementById('msg');
 const mode = document.getElementById('mode');
 const searchSel = document.getElementById('search');
 const sendBtn = document.getElementById('sendBtn');
+const kind = document.getElementById('kind');
 const history = [];
+const API_BASE = API_URL.replace('/api/ai-chat','');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function add(text, cls){
   const d = document.createElement('div');
@@ -112,6 +122,53 @@ function addSources(list){
   chat.scrollTop = chat.scrollHeight;
 }
 
+async function postJson(path, body){
+  const res = await fetch(API_BASE + path, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  let data = {};
+  try{ data = await res.json(); }catch(e){}
+  if(!res.ok && !data.error) data.error = "خطا (" + res.status + ")";
+  return data;
+}
+function addMedia(tag, src){
+  const d = document.createElement('div');
+  d.className = 'msg ai';
+  const el = document.createElement(tag);
+  el.className = 'media';
+  el.src = src;
+  if(tag === 'video'){ el.controls = true; el.autoplay = false; }
+  d.appendChild(el);
+  if(/^https?:|^data:image\//.test(src)){
+    const a = document.createElement('a');
+    a.className = 'dl'; a.href = src; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.download = tag === 'img' ? 'kavosh.png' : 'kavosh.mp4';
+    a.textContent = 'دانلود / باز کردن';
+    d.appendChild(a);
+  }
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+async function makeImage(prompt){
+  const data = await postJson('/api/image', {prompt});
+  if(!data.ok || !data.image){ add(data.error || "ساخت تصویر ناموفق بود", "ai"); return; }
+  addMedia('img', data.image);
+}
+async function makeVideo(prompt){
+  const data = await postJson('/api/video', {prompt});
+  if(!data.ok || !data.id){ add(data.error || "ساخت ویدیو ناموفق بود", "ai"); return; }
+  add("ویدیو در حال ساخت است؛ معمولاً یکی دو دقیقه طول می‌کشد...", "ai");
+  for(let i = 0; i < 90; i++){
+    await sleep(4000);
+    let st = {};
+    try{
+      const r = await fetch(API_BASE + '/api/video-status?id=' + encodeURIComponent(data.id));
+      st = await r.json();
+    }catch(e){ continue; }
+    if(st.status === 'done' && st.video){ addMedia('video', st.video); return; }
+    if(st.status === 'failed' || (st.ok === false && st.error)){ add(st.error || "ساخت ویدیو ناموفق بود", "ai"); return; }
+  }
+  add("ساخت ویدیو بیش از حد طول کشید. بعداً دوباره تلاش کن.", "ai");
+}
+
 async function send(){
   const v = msg.value.trim();
   if(!v) return;
@@ -122,6 +179,18 @@ async function send(){
   history.push({role:"user", content:v});
   think.style.display = "block";
   sendBtn.disabled = true;
+  if(kind.value !== 'chat'){
+    try{
+      if(kind.value === 'image') await makeImage(v); else await makeVideo(v);
+    }catch(err){
+      add("اتصال به سرور برقرار نشد. دوباره تلاش کن.", "ai");
+    }finally{
+      think.style.display = "none";
+      sendBtn.disabled = false;
+      msg.focus();
+    }
+    return;
+  }
   try{
     const res = await fetch(API_URL, {
       method: "POST",
