@@ -15,8 +15,11 @@ function loadDotEnv(){
 }
 loadDotEnv();
 
-// --- OpenRouter fallback key (اگر در .env یا Environment نبود، از این استفاده می‌شود) ---
-if(!process.env.OPENROUTER_API_KEY) process.env.OPENROUTER_API_KEY='b6bdbf0bb77ecaacdf6da8942003105e';
+// --- OpenRouter fallback key (تمیز شده، بدون کاراکتر اضافه) ---
+const FALLBACK_OPENROUTER_KEY='b6bdbf0bb77ecaacdf6da8942003105e';
+if(!process.env.OPENROUTER_API_KEY) process.env.OPENROUTER_API_KEY=FALLBACK_OPENROUTER_KEY;
+// پاک‌سازی: حذف فاصله، نقل‌قول و هر کاراکتر غیر ASCII از کلید
+process.env.OPENROUTER_API_KEY=String(process.env.OPENROUTER_API_KEY).replace(/[^\x21-\x7E]/g,'').trim();
 
 const {solve:solveMath,plainMath,looksMath}=require('./math.js');
 const PORT=Number(process.env.PORT||3000), BASE=__dirname, PUBLIC=path.join(BASE,'public');
@@ -42,8 +45,6 @@ function newapiChannelConnUrl(){
 const configured=p=>p==='newapi_channel_conn'?(!!process.env[keys[p]]&&!!newapiChannelConnUrl()):!!process.env[keys[p]];
 
 // ---------- "intelligence level" of each edition (percent) ----------
-// Same model/key for everyone; the level scales answer length, conversation memory,
-// saved-notes context, web-search depth and how deep the answer style is.
 const POWER={
   lite:  Number(process.env.LITE_POWER  ||50),
   mios:  Number(process.env.MIOS_POWER  ||80),
@@ -53,10 +54,10 @@ function tune(edition){
   const pct=Math.max(10,Math.min(100,POWER[edition]??100)), p=pct/100;
   return {
     pct,
-    maxTokens:Math.round(400+3700*p*p),     // 50% ~ 1300, 80% ~ 2800, 100% = 4100
-    history:Math.max(4,Math.round(20*p)),   // messages of chat history kept
-    memory:Math.round(30*p*p),              // saved notes added to the prompt
-    results:Math.max(2,Math.round(1+5*p)),  // web results used
+    maxTokens:Math.round(400+3700*p*p),
+    history:Math.max(4,Math.round(20*p)),
+    memory:Math.round(30*p*p),
+    results:Math.max(2,Math.round(1+5*p)),
     temperature:pct>=90?0.6:pct>=60?0.5:0.4,
     style:pct>=90?"پاسخ کامل، عمیق و دقیق بده؛ در مسائل سخت مرحله‌به‌مرحله و با بررسی چند زاویه تحلیل کن."
          :pct>=60?"پاسخ متعادل، دقیق و آموزشی بده؛ توضیح کافی بده ولی طولانی نکن."
@@ -144,20 +145,22 @@ function wantSearch(mode,text){
 async function ask(p,messages,opt){
   const key=process.env[keys[p]];
   if(!key)throw new Error('no key');
+  // پاک‌سازی کلید از هر کاراکتر غیر ASCII (جلوگیری از خطای Invalid character in header)
+  const safeKey=String(key).replace(/[^\x21-\x7E]/g,'').trim();
   const maxTokens=opt.maxTokens,temperature=opt.temperature;
   if(p==='anthropic'){
-    const r=await reqJson('https://api.anthropic.com/v1/messages',{headers:{'x-api-key':key,'anthropic-version':'2023-06-01'},body:{model:MODELS[p],max_tokens:maxTokens,temperature,messages:messages.filter(x=>x.role!=='system'),system:messages.find(x=>x.role==='system')?.content}});
+    const r=await reqJson('https://api.anthropic.com/v1/messages',{headers:{'x-api-key':safeKey,'anthropic-version':'2023-06-01'},body:{model:MODELS[p],max_tokens:maxTokens,temperature,messages:messages.filter(x=>x.role!=='system'),system:messages.find(x=>x.role==='system')?.content}});
     return r.content?.map(x=>x.text||'').join('')||'';
   }
   if(p==='gemini'){
     const q=messages.filter(x=>x.role!=='system').map(x=>({role:x.role==='assistant'?'model':'user',parts:[{text:x.content}]}));
     const sys=messages.find(x=>x.role==='system')?.content;
     if(sys)q.unshift({role:'user',parts:[{text:sys}]});
-    const r=await reqJson('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(MODELS[p])+':generateContent?key='+encodeURIComponent(key),{body:{contents:q,generationConfig:{temperature,maxOutputTokens:maxTokens}}});
+    const r=await reqJson('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(MODELS[p])+':generateContent?key='+encodeURIComponent(safeKey),{body:{contents:q,generationConfig:{temperature,maxOutputTokens:maxTokens}}});
     return r.candidates?.[0]?.content?.parts?.map(x=>x.text||'').join('')||'';
   }
   const url=p==='newapi_channel_conn'?newapiChannelConnUrl():p==='openrouter'?'https://openrouter.ai/api/v1/chat/completions':p==='openai'?'https://api.openai.com/v1/chat/completions':p==='deepseek'?'https://api.deepseek.com/chat/completions':'https://api.x.ai/v1/chat/completions';
-  const headers={Authorization:'Bearer '+key};
+  const headers={Authorization:'Bearer '+safeKey};
   if(p==='openrouter'){headers['HTTP-Referer']=process.env.SITE_URL||'https://kavosh.onrender.com';headers['X-Title']='Kavosh'}
   const r=await reqJson(url,{headers,body:{model:MODELS[p],messages,max_tokens:maxTokens,temperature}});
   return r.choices?.[0]?.message?.content||'';
@@ -178,14 +181,12 @@ async function chat(body){
   const c=solveMath(user);
   if(c!==null)return {answer:c};
 
-  // math problems: low temperature, enough room for step-by-step work, no web search unless forced
   const isMath=looksMath(user);
   if(isMath){
     t={...t,temperature:0.2,maxTokens:Math.max(t.maxTokens,2400),
       style:t.style+' این یک مسئله ریاضی است: مرحله‌به‌مرحله حل کن، هر محاسبه را یک بار دوباره بررسی کن و پاسخ نهایی را در یک خط جدا با عنوان «پاسخ:» بنویس.'};
   }
 
-  // web search
   let sources=[],searchCtx='';
   if(wantSearch(isMath&&body.search!=='on'&&body.search!==true?'off':body.search,user)){
     sources=await webSearch(user,t.results);
@@ -210,7 +211,7 @@ async function chat(body){
           arr.unshift({q:user.slice(0,300),a:clean(answer).slice(0,2000),provider:p,edition,at:new Date().toISOString()});
           save(MEMORY,arr.slice(0,500));
         }
-        return {answer,sources,searched:sources.length>0};
+        return {answer,sources,searched:sources.length>0,provider:p};
       }
     }catch(e){errors.push(p+': '+e.message)}
   }
@@ -220,9 +221,8 @@ async function chat(body){
 
 // ---------- image & video generation ----------
 const IMAGE_MODEL=process.env.IMAGE_MODEL||'gpt-image-1';
-const VIDEO_MODEL=process.env.VIDEO_MODEL||'minimax/video-01';   // Replicate model (owner/name)
+const VIDEO_MODEL=process.env.VIDEO_MODEL||'minimax/video-01';
 const firstChatProvider=()=>ORDER.find(configured);
-// Persian prompts give better pictures when translated to English first (only if a chat key exists).
 async function englishPrompt(text){
   const p=firstChatProvider();
   if(!p||!/[؀-ۿ]/.test(text))return text;
@@ -245,7 +245,6 @@ async function makeImage(prompt){
     if(d?.url)return {image:d.url,provider:'openai'};
     throw new Error('پاسخ تصویر خالی بود');
   }
-  // keyless fallback (free service; the browser loads the picture directly)
   const seed=Math.floor(Math.random()*1e9);
   return {image:'https://image.pollinations.ai/prompt/'+encodeURIComponent(en)+'?width=1024&height=1024&nologo=true&seed='+seed,provider:'pollinations'};
 }
@@ -269,7 +268,14 @@ async function videoStatus(id){
 }
 
 // ---------- server ----------
-function send(res,status,obj){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*'});res.end(JSON.stringify(obj))}
+function send(res,status,obj){
+  res.writeHead(status,{
+    'Content-Type':'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin':'*',
+    'X-Provider':(obj&&obj.provider)||'unknown'
+  });
+  res.end(JSON.stringify(obj));
+}
 const CT={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.ico':'image/x-icon'};
 const server=http.createServer((req,res)=>{
   if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Methods':'GET,POST,OPTIONS'});return res.end()}
