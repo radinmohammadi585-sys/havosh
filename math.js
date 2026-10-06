@@ -470,9 +470,17 @@ const SYM={times:'×',cdot:'·',div:'÷',pm:'±',mp:'∓',le:'≤',leq:'≤',ge:
 
 function convSeg(s){
   const before=s;
-  s=s.replace(/\$\$([\s\S]+?)\$\$/g,(m,a)=>/\\/.test(a)?a:m)
-     .replace(/\\\[([\s\S]+?)\\\]/g,'$1').replace(/\\\(([\s\S]+?)\\\)/g,'$1')
-     .replace(/\$([^$\n]+?)\$/g,(m,a)=>/\\/.test(a)?a:m);
+  const BS=String.fromCharCode(92);
+const reDD=/\$\$([\s\S]+?)\$\$/g;
+const reBr1=new RegExp(BS+BS+'\\[([\\s\\S]+?)'+BS+BS+'\\]','g');
+const reBr2=new RegExp(BS+BS+'\\(([\\s\\S]+?)'+BS+BS+'\\)','g');
+const reD=/\$([^$\n]+?)\$/g;
+s=s.replace(reDD,(m,a)=>a.indexOf(BS)>=0?a:m);
+s=s.replace(reBr1,'$1');
+s=s.replace(reBr2,'$1');
+s=s.replace(reD,(m,a)=>a.indexOf(BS)>=0?a:m);
+    
+    
   for(let k=0;k<3;k++){
     s=s.replace(/\\[dt]?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g,'($1)/($2)')
        .replace(/\\sqrt\s*\[([^\]]*)\]\s*\{([^{}]*)\}/g,'ریشه $1ام($2)')
