@@ -14,7 +14,7 @@ function loadDotEnv(){
   }catch{}
 }
 loadDotEnv();
-
+if(!process.env.OPENROUTER_API_KEY) process.env.OPENROUTER_API_KEY='b6bdbf0bb77ecaacdf6da8942003105e';
 const {solve:solveMath,plainMath,looksMath}=require('./math.js');
 const PORT=Number(process.env.PORT||3000), BASE=__dirname, PUBLIC=path.join(BASE,'public');
 const MEMORY=path.join(BASE,'ai-memory.json');
