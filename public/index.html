@@ -23,9 +23,11 @@
   --accent:#7c6cff;
   --accent-2:#5b8cff;
   --radius:18px;
-  --t-fast:150ms;
-  --t-med:280ms;
-  --t-slow:600ms;
+  --t-fast:180ms;
+  --t-med:320ms;
+  --t-slow:700ms;
+  --ease:cubic-bezier(.22,.61,.36,1);
+  --ease-soft:cubic-bezier(.4,.14,.3,1);
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -36,149 +38,286 @@ body{
 }
 #galaxy{
   position:fixed;inset:0;z-index:0;pointer-events:none;
-  opacity:0;transition:opacity 1.6s ease;
+  opacity:0;transition:opacity 2s var(--ease-soft);
 }
 #galaxy.show{opacity:1}
 .app{
   position:relative;z-index:1;
   height:100vh;height:100dvh;
   display:flex;flex-direction:column;
-  background:
-    radial-gradient(1200px 800px at 70% -10%, rgba(124,108,255,.10), transparent 60%),
-    radial-gradient(900px 600px at 10% 100%, rgba(91,140,255,.08), transparent 55%),
-    transparent;
+  background:transparent;
 }
 .header{
   padding:14px 20px;
   border-bottom:1px solid var(--border);
   display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  background:rgba(5,6,15,.55);
+  backdrop-filter:blur(14px) saturate(140%);
+  -webkit-backdrop-filter:blur(14px) saturate(140%);
+  background:rgba(5,6,15,.35);
+  transition:background var(--t-med) var(--ease);
 }
 .logo{font-size:22px;font-weight:800;letter-spacing:.2px}
 .logo span{
   background:linear-gradient(90deg,#a89bff,#5b8cff);
   -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 10px rgba(124,108,255,.4));
 }
 .sub{color:var(--muted);font-size:12px;margin-top:2px}
 .tools{display:flex;gap:8px;flex-wrap:wrap}
 select{
-  background:var(--panel);color:var(--text);
+  background:rgba(14,19,48,.65);color:var(--text);
   border:1px solid var(--border);border-radius:14px;
   padding:9px 12px;font:inherit;font-size:13px;cursor:pointer;
-  transition:border-color var(--t-fast),background var(--t-fast);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  transition:border-color var(--t-fast) var(--ease),
+             background var(--t-fast) var(--ease),
+             box-shadow var(--t-fast) var(--ease);
 }
-select:hover{border-color:#3d4680}
-select:focus{outline:none;border-color:var(--accent)}
+select:hover{border-color:#3d4680;background:rgba(19,26,61,.75)}
+select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,108,255,.15)}
 .main{
   flex:1;overflow:auto;text-align:center;padding:40px 22px;
+  animation:fadeUp .8s var(--ease-soft) both;
+  background:transparent;
 }
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .brain{
   font-size:52px;display:inline-block;
-  animation:float 4s ease-in-out infinite;
-  filter:drop-shadow(0 0 24px rgba(124,108,255,.55));
+  animation:float 5s var(--ease-soft) infinite;
+  filter:drop-shadow(0 0 28px rgba(124,108,255,.55))
+         drop-shadow(0 0 50px rgba(91,140,255,.2));
 }
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes float{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-9px) rotate(2deg)}}
 h1{font-size:clamp(24px,4vw,38px);margin:16px 0 10px;font-weight:800}
-p{color:var(--muted);font-size:clamp(14px,1.6vw,17px);line-height:2;max-width:640px;margin:0 auto}
+p{color:var(--muted);font-size:clamp(14px,1.6vw,17px);line-height:2.05;max-width:640px;margin:0 auto}
 .chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:28px}
 .chips button{
   background:rgba(255,255,255,.03);color:var(--text);
   border:1px solid var(--border);border-radius:22px;
   padding:11px 16px;font:inherit;font-size:13px;cursor:pointer;
-  transition:all var(--t-fast);
-  opacity:0;animation:chipIn .5s ease forwards;
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  transition:all var(--t-med) var(--ease);
+  opacity:0;animation:chipIn .6s var(--ease-soft) forwards;
 }
-.chips button:hover{background:rgba(124,108,255,.15);border-color:var(--accent);transform:translateY(-1px)}
+.chips button:hover{
+  background:rgba(124,108,255,.15);
+  border-color:var(--accent);
+  transform:translateY(-1px);
+  box-shadow:0 8px 24px -12px rgba(124,108,255,.6);
+}
 @keyframes chipIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .chat{
   flex:1;overflow-y:auto;padding:18px 16px 8px;
   scroll-behavior:smooth;display:none;overscroll-behavior:contain;
+  background:transparent;
 }
 .chat.show{display:block}
 .chat::-webkit-scrollbar{width:8px}
-.chat::-webkit-scrollbar-thumb{background:#2a3159;border-radius:4px}
-.chat::-webkit-scrollbar-thumb:hover{background:#3d4680}
+.chat::-webkit-scrollbar-track{background:transparent}
+.chat::-webkit-scrollbar-thumb{background:rgba(42,49,89,.6);border-radius:4px}
+.chat::-webkit-scrollbar-thumb:hover{background:rgba(61,70,128,.8)}
 .msg{
   padding:12px 16px;border-radius:16px;margin:10px 0;
   white-space:pre-wrap;line-height:1.9;font-size:14.5px;
   max-width:min(760px,88%);word-wrap:break-word;
-  animation:msgIn var(--t-med) cubic-bezier(.2,.9,.3,1.2);
+  animation:msgIn var(--t-med) var(--ease-soft);
 }
 @keyframes msgIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
 .user{
-  background:linear-gradient(135deg,#6d5dfc,#5b8cff);
+  background:linear-gradient(135deg,rgba(109,93,252,.85),rgba(91,140,255,.85));
   margin-right:auto;margin-left:40px;
   border-bottom-right-radius:6px;
+  box-shadow:0 6px 22px -12px rgba(124,108,255,.7);
+  backdrop-filter:blur(8px) saturate(130%);
+  -webkit-backdrop-filter:blur(8px) saturate(130%);
 }
 .ai{
-  background:var(--panel);border:1px solid var(--border);
+  background:rgba(14,19,48,.55);
+  border:1px solid var(--border);
   margin-left:auto;margin-right:40px;
   border-bottom-left-radius:6px;
+  backdrop-filter:blur(8px) saturate(120%);
+  -webkit-backdrop-filter:blur(8px) saturate(120%);
 }
-.msg.error{background:#2a1430;border-color:#5a2040;color:#ffb4c8}
+.msg.error{background:rgba(42,20,48,.6);border-color:#5a2040;color:#ffb4c8}
+
+/* === Thinking Panel === */
+.thinking-panel{
+  margin:10px auto 10px 0;
+  max-width:min(760px,88%);
+  margin-left:auto;margin-right:40px;
+  background:rgba(14,19,48,.55);
+  border:1px solid var(--border);
+  border-radius:16px;
+  border-bottom-left-radius:6px;
+  overflow:hidden;
+  backdrop-filter:blur(8px) saturate(120%);
+  -webkit-backdrop-filter:blur(8px) saturate(120%);
+  animation:msgIn var(--t-med) var(--ease-soft);
+  transition:opacity var(--t-slow) var(--ease-soft);
+}
+.thinking-panel.done{opacity:.62}
+.thinking-head{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 16px;
+  font-size:13px;color:var(--muted);
+  cursor:pointer;user-select:none;
+  transition:background var(--t-fast) var(--ease);
+}
+.thinking-head:hover{background:rgba(124,108,255,.06)}
+.thinking-head .spark{
+  width:18px;height:18px;flex-shrink:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:14px;
+  filter:drop-shadow(0 0 10px rgba(124,108,255,.8));
+  animation:sparkSpin 3.2s linear infinite;
+}
+@keyframes sparkSpin{
+  0%{transform:rotate(0deg) scale(1)}
+  50%{transform:rotate(180deg) scale(1.18)}
+  100%{transform:rotate(360deg) scale(1)}
+}
+.thinking-panel.done .thinking-head .spark{animation:none;opacity:.75}
+.thinking-head .title{flex:1;font-weight:400}
+.thinking-head .toggle{
+  font-size:11px;color:var(--muted);
+  transition:transform var(--t-med) var(--ease);
+}
+.thinking-panel.collapsed .thinking-head .toggle{transform:rotate(-90deg)}
+.thinking-steps{
+  padding:2px 16px 12px;
+  display:flex;flex-direction:column;gap:6px;
+  transition:max-height var(--t-med) var(--ease),
+             opacity var(--t-med) var(--ease),
+             padding var(--t-med) var(--ease);
+  max-height:400px;opacity:1;overflow:hidden;
+}
+.thinking-panel.collapsed .thinking-steps{
+  max-height:0;opacity:0;padding-top:0;padding-bottom:0;
+}
+.step{
+  display:flex;align-items:center;gap:10px;
+  font-size:12.5px;color:var(--muted);font-weight:300;
+  padding:3px 0;
+  opacity:0;
+  animation:stepIn var(--t-med) var(--ease-soft) forwards;
+}
+@keyframes stepIn{from{opacity:0;transform:translateX(-6px)}to{opacity:.9;transform:none}}
+.step.done{color:var(--muted)}
+.step.active{color:#c9c2ff}
+.step-dot{
+  width:14px;height:14px;flex-shrink:0;
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.step.done .step-dot::before{content:'✓';color:#7ee0b0;font-size:12px}
+.step.active .step-dot::before{
+  content:'';width:8px;height:8px;border-radius:50%;
+  background:var(--accent);
+  box-shadow:0 0 10px var(--accent);
+  animation:pulseDot 1.4s var(--ease-soft) infinite;
+}
+@keyframes pulseDot{0%,100%{transform:scale(.85);opacity:.7}50%{transform:scale(1.15);opacity:1}}
+
+/* === Web Search Badge === */
+.web-search-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  margin:8px auto 8px 0;
+  margin-left:auto;margin-right:40px;
+  padding:7px 14px;
+  background:rgba(91,140,255,.12);
+  border:1px solid rgba(91,140,255,.28);
+  border-radius:14px;
+  font-size:12px;color:#a8c0ff;font-weight:300;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  animation:msgIn var(--t-med) var(--ease-soft);
+}
+.web-search-badge .globe{
+  display:inline-block;
+  animation:globeSpin 2s linear infinite;
+  filter:drop-shadow(0 0 8px rgba(91,140,255,.7));
+}
+@keyframes globeSpin{from{transform:rotateY(0)}to{transform:rotateY(360deg)}}
+.web-search-badge.done .globe{animation:none}
+
 .src{
   margin:0 40px 12px auto;font-size:12px;line-height:2;
   color:var(--muted);max-width:min(760px,88%);
-  animation:msgIn var(--t-med) ease;
+  animation:msgIn var(--t-med) var(--ease-soft);
 }
-.src a{color:#8fa2ff;margin-left:10px;text-decoration:none;display:inline-block}
-.src a:hover{text-decoration:underline}
+.src a{
+  color:#8fa2ff;margin-left:10px;text-decoration:none;display:inline-block;
+  padding:2px 9px;border-radius:9px;
+  background:rgba(91,140,255,.08);
+  border:1px solid rgba(91,140,255,.15);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  transition:all var(--t-fast) var(--ease);
+}
+.src a:hover{
+  background:rgba(91,140,255,.18);
+  border-color:rgba(91,140,255,.4);
+  color:#c5d2ff;
+}
 .media-wrap{position:relative;margin-top:10px}
 .media{
   display:block;max-width:100%;border-radius:14px;
-  background:#0a0f24;min-height:80px;
-  opacity:0;transition:opacity var(--t-slow) ease;
+  background:rgba(10,15,36,.6);min-height:80px;
+  opacity:0;transition:opacity var(--t-slow) var(--ease-soft);
 }
 .media.loaded{opacity:1}
 .media-skel{
   position:absolute;inset:0;border-radius:14px;
-  background:linear-gradient(100deg,#131a3d 30%,#1c2550 50%,#131a3d 70%);
+  background:linear-gradient(100deg,rgba(19,26,61,.7) 30%,rgba(28,37,80,.8) 50%,rgba(19,26,61,.7) 70%);
   background-size:200% 100%;
   animation:shimmer 1.4s linear infinite;
 }
 @keyframes shimmer{to{background-position:-200% 0}}
 .dl{display:inline-block;margin-top:8px;color:#8fa2ff;font-size:12px;text-decoration:none}
 .dl:hover{text-decoration:underline}
-.think{
-  display:none;align-items:center;gap:10px;
-  padding:10px 22px;color:var(--muted);font-size:13px;
-}
-.think.show{display:flex;animation:msgIn var(--t-med) ease}
-.dots{display:inline-flex;gap:4px;margin-inline-start:4px}
-.dots i{
-  width:6px;height:6px;border-radius:50%;background:var(--accent);
-  animation:pulse 1.2s ease-in-out infinite;
-}
-.dots i:nth-child(2){animation-delay:.15s;background:var(--accent-2)}
-.dots i:nth-child(3){animation-delay:.3s;background:#a89bff}
-@keyframes pulse{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+.think{display:none!important}
 .bottom{
   padding:14px 18px calc(14px + env(safe-area-inset-bottom));
   border-top:1px solid var(--border);display:flex;gap:10px;
-  background:rgba(5,6,15,.65);
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  background:rgba(5,6,15,.35);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
 }
 input#msg{
-  flex:1;background:var(--panel);color:var(--text);
+  flex:1;background:rgba(14,19,48,.65);color:var(--text);
   border:1px solid var(--border);border-radius:16px;
   padding:13px 16px;font:inherit;font-size:14px;
-  transition:border-color var(--t-fast);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  transition:border-color var(--t-fast) var(--ease),
+             box-shadow var(--t-fast) var(--ease);
 }
-input#msg:focus{outline:none;border-color:var(--accent)}
+input#msg:focus{
+  outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(124,108,255,.12);
+}
 .send{
   background:linear-gradient(135deg,#6d5dfc,#5b8cff);
   color:#fff;border:0;border-radius:14px;
   padding:13px 22px;font:inherit;font-weight:600;cursor:pointer;
-  transition:transform var(--t-fast),opacity var(--t-fast);
+  box-shadow:0 8px 22px -12px rgba(124,108,255,.7);
+  transition:transform var(--t-fast) var(--ease),
+             box-shadow var(--t-fast) var(--ease),
+             opacity var(--t-fast) var(--ease);
 }
-.send:hover:not(:disabled){transform:translateY(-1px)}
+.send:hover:not(:disabled){
+  transform:translateY(-1px);
+  box-shadow:0 12px 28px -12px rgba(124,108,255,.9);
+}
 .send:active:not(:disabled){transform:translateY(0)}
-.send:disabled{opacity:.5;cursor:not-allowed}
+.send:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
 .cursor{
   display:inline-block;width:7px;height:14px;background:var(--accent);
   vertical-align:-2px;margin-inline-start:2px;
   animation:blink .9s steps(1) infinite;
+  box-shadow:0 0 8px rgba(124,108,255,.7);
 }
 @keyframes blink{50%{opacity:0}}
 @media (max-width:640px){
@@ -188,6 +327,8 @@ input#msg:focus{outline:none;border-color:var(--accent)}
   .tools select{font-size:12px;padding:7px 10px}
   .user{margin-left:16px}
   .ai{margin-right:16px}
+  .thinking-panel{margin-right:16px}
+  .web-search-badge{margin-right:16px}
   .src{margin-right:16px}
   .msg{font-size:14px;max-width:92%}
   .main{padding:28px 16px}
@@ -240,11 +381,6 @@ input#msg:focus{outline:none;border-color:var(--accent)}
 
   <main class="chat" id="chat" role="log" aria-live="polite"></main>
 
-  <div class="think" id="think" aria-hidden="true">
-    <span>کاوش در حال فکر کردن است</span>
-    <span class="dots"><i></i><i></i><i></i></span>
-  </div>
-
   <footer class="bottom">
     <input id="msg" placeholder="پیامت را بنویس..." autocomplete="off" enterkeyhint="send">
     <button class="send" id="sendBtn" type="button">ارسال</button>
@@ -252,6 +388,9 @@ input#msg:focus{outline:none;border-color:var(--accent)}
 </div>
 
 <script>
+/* ============================================================
+   Galaxy Background — کهکشان ستاره‌ای
+   ============================================================ */
 (function galaxy(){
   const c = document.getElementById('galaxy');
   if(!c || !c.getContext) return;
@@ -259,8 +398,9 @@ input#msg:focus{outline:none;border-color:var(--accent)}
   let W, H, stars = [], nebulas = [];
   let dpr = Math.min(window.devicePixelRatio || 1, 2);
   const isMobile = matchMedia('(max-width:640px)').matches;
-  const STAR_COUNT = isMobile ? 90 : 180;
+  const STAR_COUNT = isMobile ? 130 : 260;
   let raf = null;
+  let t = 0;
 
   function resize(){
     dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -276,26 +416,31 @@ input#msg:focus{outline:none;border-color:var(--accent)}
       r: (Math.random()*1.3 + .3) * dpr,
       a: Math.random()*.7 + .3,
       tw: Math.random()*Math.PI*2,
+      twSp: Math.random()*.012 + .005,
       vy: (Math.random()*.08 + .02) * dpr,
     }));
     const m = Math.min(W,H);
     nebulas = [
-      {x:W*.72, y:H*.06, r:m*.42, c:'124,108,255', a:.09},
-      {x:W*.10, y:H*.95, r:m*.38, c:'91,140,255',  a:.07},
-      {x:W*.45, y:H*.55, r:m*.30, c:'164,120,255', a:.05},
+      {x:W*.72, y:H*.06, r:m*.42, c:'124,108,255', a:.10},
+      {x:W*.10, y:H*.95, r:m*.38, c:'91,140,255',  a:.08},
+      {x:W*.45, y:H*.55, r:m*.30, c:'164,120,255', a:.06},
+      {x:W*.85, y:H*.70, r:m*.28, c:'124,108,255', a:.05},
     ];
   }
   function draw(){
+    t += .016;
     ctx.clearRect(0,0,W,H);
-    for(const n of nebulas){
-      const g = ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r);
-      g.addColorStop(0, 'rgba(' + n.c + ',' + n.a + ')');
+    for(let i=0;i<nebulas.length;i++){
+      const n = nebulas[i];
+      const breathe = .9 + Math.sin(t*.3 + i) * .1;
+      const g = ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r*breathe);
+      g.addColorStop(0, 'rgba(' + n.c + ',' + (n.a*breathe) + ')');
       g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g;
       ctx.fillRect(n.x-n.r, n.y-n.r, n.r*2, n.r*2);
     }
     for(const s of stars){
-      s.tw += .015;
+      s.tw += s.twSp;
       const tw = .55 + Math.sin(s.tw)*.45;
       ctx.globalAlpha = s.a * tw;
       ctx.fillStyle = '#fff';
@@ -324,7 +469,6 @@ const API_BASE = API_URL.replace('/api/ai-chat','');
 
 const chatEl   = document.getElementById('chat');
 const welcome  = document.getElementById('welcome');
-const thinkEl  = document.getElementById('think');
 const msgEl    = document.getElementById('msg');
 const modeEl   = document.getElementById('mode');
 const searchEl = document.getElementById('search');
@@ -334,6 +478,110 @@ const kindEl   = document.getElementById('kind');
 const STORAGE_KEY = 'kavosh.history.v1';
 const history = [];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ============================================================
+   Thinking Panel — نمایش مراحل فکر
+   ============================================================ */
+const ThinkingPanel = {
+  el: null, head: null, titleEl: null, stepsEl: null, steps: [],
+
+  create(){
+    const panel = document.createElement('div');
+    panel.className = 'thinking-panel';
+    panel.innerHTML = `
+      <div class="thinking-head">
+        <span class="spark">✨</span>
+        <span class="title">در حال فکر کردن...</span>
+        <span class="toggle">▾</span>
+      </div>
+      <div class="thinking-steps"></div>
+    `;
+    panel.querySelector('.thinking-head').addEventListener('click', () => {
+      panel.classList.toggle('collapsed');
+    });
+    this.el = panel;
+    this.head = panel.querySelector('.thinking-head');
+    this.titleEl = panel.querySelector('.title');
+    this.stepsEl = panel.querySelector('.thinking-steps');
+    this.steps = [];
+    chatEl.appendChild(panel);
+    scrollDown();
+    return panel;
+  },
+
+  addStep(text){
+    const all = this.stepsEl.querySelectorAll('.step');
+    all.forEach(s => {
+      if(s.dataset.state === 'active'){
+        s.dataset.state = 'done';
+        s.classList.remove('active');
+        s.classList.add('done');
+      }
+    });
+    const step = document.createElement('div');
+    step.className = 'step active';
+    step.dataset.state = 'active';
+    step.innerHTML = `<span class="step-dot"></span><span class="step-text">${text}</span>`;
+    this.stepsEl.appendChild(step);
+    this.steps.push(step);
+    scrollDown();
+    return step;
+  },
+
+  updateLast(text){
+    const last = this.steps[this.steps.length - 1];
+    if(last){
+      const t = last.querySelector('.step-text');
+      if(t) t.textContent = text;
+      scrollDown();
+    }
+  },
+
+  complete(title){
+    if(!this.el) return;
+    this.el.classList.add('done');
+    const spark = this.head.querySelector('.spark');
+    if(spark) spark.textContent = '✓';
+    if(title && this.titleEl) this.titleEl.textContent = title;
+    const all = this.stepsEl.querySelectorAll('.step');
+    all.forEach(s => {
+      s.dataset.state = 'done';
+      s.classList.remove('active');
+      s.classList.add('done');
+    });
+  },
+
+  reset(){
+    this.el = null; this.head = null; this.titleEl = null;
+    this.stepsEl = null; this.steps = [];
+  }
+};
+
+/* ============================================================
+   Web Search Badge
+   ============================================================ */
+function createWebSearchBadge(){
+  const b = document.createElement('div');
+  b.className = 'web-search-badge';
+  b.innerHTML = `<span class="globe">🌐</span><span class="txt">در حال جستجو در وب...</span>`;
+  chatEl.appendChild(b);
+  scrollDown();
+  return {
+    done(text){
+      b.classList.add('done');
+      const t = b.querySelector('.txt');
+      if(t) t.textContent = text || 'جستجوی وب کامل شد';
+      const g = b.querySelector('.globe');
+      if(g) g.textContent = '✓';
+      scrollDown();
+    },
+    setText(text){
+      const t = b.querySelector('.txt');
+      if(t) t.textContent = text;
+    },
+    el: b
+  };
+}
 
 function saveHistory(){
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-60))); }catch(e){}
@@ -412,6 +660,26 @@ async function renderStoredHistory(){
   }
   scrollDown(false);
 }
+
+/* تشخیص نیاز به جستجوی وب */
+function shouldSearch(text){
+  const t = text.trim();
+  const patterns = [
+    /اخبار/, /خبر/, /آخرین/, /جدیدترین/, /امروز/, /دیروز/, /الان/,
+    /قیمت/, /دلار/, /یورو/, /طلا/, /بورس/, /ارز/,
+    /هواشناسی/, /آب\s*و\s*هوا/, /دمای/,
+    /کی\s/, /چه\s*زمانی/, /چه\s*وقت/,
+    /نتایج/, /مسابقه/, /بازی\s/, /لیگ/,
+    /رئیس\s*جمهور/, /وزیر/, /انتخابات/,
+    /20\d\d/, /19\d\d/,
+    /نرخ/, /شاخص/,
+  ];
+  return patterns.some(p => p.test(t));
+}
+
+/* ============================================================
+   Send
+   ============================================================ */
 async function send(){
   const v = msgEl.value.trim();
   if(!v) return;
@@ -422,13 +690,41 @@ async function send(){
   history.push({role:'user', content:v});
   saveHistory();
   scrollDown();
-  thinkEl.classList.add('show');
   sendBtn.disabled = true;
+  ThinkingPanel.reset();
+
   try{
     if(kindEl.value !== 'chat'){
+      ThinkingPanel.create();
+      ThinkingPanel.addStep(kindEl.value === 'image' ? 'ساخت تصویر...' : 'ساخت ویدیو...');
       await (kindEl.value === 'image' ? makeImage(v) : makeVideo(v));
+      ThinkingPanel.complete('انجام شد');
       return;
     }
+
+    ThinkingPanel.create();
+    ThinkingPanel.addStep('در حال درک سوال...');
+    await sleep(280);
+
+    ThinkingPanel.addStep('تحلیل و برنامه‌ریزی پاسخ...');
+    await sleep(260);
+
+    const searchMode = searchEl.value;
+    const needsSearch = searchMode === 'on' ||
+                        (searchMode === 'auto' && shouldSearch(v));
+
+    let searchBadge = null;
+    if(needsSearch){
+      ThinkingPanel.addStep('جستجو در وب...');
+      searchBadge = createWebSearchBadge();
+      await sleep(380);
+    } else {
+      ThinkingPanel.addStep('بازیابی از دانش داخلی...');
+      await sleep(220);
+    }
+
+    ThinkingPanel.addStep('ترکیب و ساخت پاسخ...');
+
     let data = {}, raw = '';
     const res = await fetch(API_URL, {
       method: 'POST',
@@ -440,106 +736,23 @@ async function send(){
       })
     });
     try{ raw = await res.text(); data = JSON.parse(raw); }catch(e){}
+
     const out = data.answer || data.error ||
       (res.ok ? 'پاسخی دریافت نشد' : 'خطا (' + res.status + '): ' + String(raw).slice(0,200));
-    thinkEl.classList.remove('show');
+
+    if(searchBadge){
+      searchBadge.done(Array.isArray(data.sources) && data.sources.length
+        ? `جستجوی وب کامل شد (${data.sources.length} منبع)`
+        : 'جستجو کامل شد');
+    }
+    ThinkingPanel.complete('فکر کردن کامل شد');
+
     const bubble = makeMsg('', 'ai', {typing:true});
     await typeInto(bubble, out);
     history.push({role:'assistant', content:out});
     saveHistory();
     addSources(data.sources);
+
   }catch(err){
-    thinkEl.classList.remove('show');
-    makeMsg('اتصال به سرور برقرار نشد. اگر سرور Render تازه بیدار شده، چند ثانیه صبر کن و دوباره بفرست.', 'ai error');
-  }finally{
-    thinkEl.classList.remove('show');
-    sendBtn.disabled = false;
-    msgEl.focus();
-  }
-}
-async function postJson(path, body){
-  const res = await fetch(API_BASE + path, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(body)
-  });
-  let data = {};
-  try{ data = await res.json(); }catch(e){}
-  if(!res.ok && !data.error) data.error = 'خطا (' + res.status + ')';
-  return data;
-}
-function addMedia(tag, src){
-  const wrap = document.createElement('div');
-  wrap.className = 'msg ai';
-  const holder = document.createElement('div');
-  holder.className = 'media-wrap';
-  const skel = document.createElement('div');
-  skel.className = 'media-skel';
-  holder.appendChild(skel);
-  const el = document.createElement(tag);
-  el.className = 'media';
-  el.src = src;
-  if(tag === 'video'){ el.controls = true; el.preload = 'metadata'; el.playsInline = true; }
-  const reveal = () => { el.classList.add('loaded'); if(skel.parentNode) skel.remove(); };
-  el.addEventListener('load', reveal, {once:true});
-  el.addEventListener('loadeddata', reveal, {once:true});
-  el.addEventListener('error', reveal, {once:true});
-  holder.appendChild(el);
-  wrap.appendChild(holder);
-  if(/^https?:|^data:image\//.test(src)){
-    const a = document.createElement('a');
-    a.className = 'dl';
-    a.href = src; a.target = '_blank'; a.rel = 'noopener noreferrer';
-    a.download = tag === 'img' ? 'kavosh.png' : 'kavosh.mp4';
-    a.textContent = 'دانلود / باز کردن';
-    wrap.appendChild(a);
-  }
-  chatEl.appendChild(wrap);
-  scrollDown();
-}
-async function makeImage(prompt){
-  const data = await postJson('/api/image', {prompt: prompt});
-  if(!data.ok || !data.image){
-    makeMsg(data.error || 'ساخت تصویر ناموفق بود', 'ai error');
-    return;
-  }
-  addMedia('img', data.image);
-}
-async function makeVideo(prompt){
-  const data = await postJson('/api/video', {prompt: prompt});
-  if(!data.ok || !data.id){
-    makeMsg(data.error || 'ساخت ویدیو ناموفق بود', 'ai error');
-    return;
-  }
-  makeMsg('ویدیو در حال ساخت است؛ معمولاً یکی دو دقیقه طول می‌کشد...', 'ai');
-  for(let i=0; i<60; i++){
-    await sleep(4000);
-    let st = {};
-    try{
-      const r = await fetch(API_BASE + '/api/video-status?id=' + encodeURIComponent(data.id));
-      st = await r.json();
-    }catch(e){ continue; }
-    if(st.status === 'done' && st.video){ addMedia('video', st.video); return; }
-    if(st.status === 'failed' || (st.ok === false && st.error)){
-      makeMsg(st.error || 'ساخت ویدیو ناموفق بود', 'ai error');
-      return;
-    }
-  }
-  makeMsg('ساخت ویدیو بیش از حد طول کشید. بعداً دوباره تلاش کن.', 'ai error');
-}
-if('serviceWorker' in navigator && location.protocol.startsWith('http')){
-  navigator.serviceWorker.register('/sw.js').catch(() => {});
-}
-sendBtn.addEventListener('click', send);
-msgEl.addEventListener('keydown', e => {
-  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }
-});
-document.querySelectorAll('.chips button').forEach(b => {
-  b.addEventListener('click', () => { msgEl.value = b.textContent; send(); });
-});
-requestAnimationFrame(() => {
-  setTimeout(renderStoredHistory, 320);
-});
-</script>
-</body>
-</html>
+    ThinkingPanel.complete('خطا در فرآیند');
+    makeMsg('اتصال به سرور برقرار نشد. اگر سرور Render تازه بیدار
