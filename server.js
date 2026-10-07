@@ -16,10 +16,10 @@ function loadDotEnv(){
 }
 loadDotEnv();
 
-// --- OpenRouter fallback key ---
-const FALLBACK_OPENROUTER_KEY='b6bdbf0bb77ecaacdf6da8942003105e';
-if(!process.env.OPENROUTER_API_KEY) process.env.OPENROUTER_API_KEY=FALLBACK_OPENROUTER_KEY;
-process.env.OPENROUTER_API_KEY=String(process.env.OPENROUTER_API_KEY).replace(/[^\x21-\x7E]/g,'').trim();
+// پاک‌سازی کلید OpenRouter از هر کاراکتر غیر ASCII (اگر ست شده باشد)
+if(process.env.OPENROUTER_API_KEY){
+  process.env.OPENROUTER_API_KEY=String(process.env.OPENROUTER_API_KEY).replace(/[^\u0021-\u007E]/g,'').trim();
+}
 
 const {solve:solveMath,plainMath,looksMath}=require('./math.js');
 const PORT=Number(process.env.PORT||3000), BASE=__dirname, PUBLIC=path.join(BASE,'public');
@@ -68,17 +68,28 @@ class LRU{
   set(k,v){this.m.set(k,{v,t:Date.now()});if(this.m.size>this.max){const f=this.m.keys().next().value;this.m.delete(f)}}
   clear(){this.m.clear()}
 }
-const CACHE=new LRU(600,15*60*1000);      // AI chat cache
-const SEARCH_CACHE=new LRU(300,5*60*1000); // web search cache
-const TR_CACHE=new LRU(200,60*60*1000);    // translation cache
+const CACHE=new LRU(600,15*60*1000);
+const SEARCH_CACHE=new LRU(300,5*60*1000);
+const TR_CACHE=new LRU(200,60*60*1000);
 
 // ---------- helpers ----------
 const jsonFile=(f,d)=>{try{return JSON.parse(fs.readFileSync(f,'utf8'))}catch{return d}};
 const save=(f,d)=>{try{fs.writeFileSync(f+'.tmp',JSON.stringify(d,null,2));fs.renameSync(f+'.tmp',f)}catch{}};
 const clean=s=>String(s??'').replace(/\0/g,'').trim().slice(0,30000);
+
+// ✅ NEW: safety سخت‌گیرانه — فقط درخواست‌های واقعاً خطرناک
 function safety(s){
   const t=clean(s).toLowerCase();
-  const bad=[/ساخت.{0,25}(بمب|مواد منفجره|سلاح)/,/build.{0,30}(bomb|explosive|weapon)/,/سرقت.{0,30}(رمز|پسورد|اکانت)/,/(steal|phish).{0,30}(password|account|token)/,/خودکشی.{0,30}(روش|چگونه|چطور)/,/(suicide|self.?harm).{0,30}(how|method|instructions)/,/پورنو.{0,20}(کودک|نوجوان)/];
+  const bad=[
+    // ساخت سلاح/مواد منفجره — نیاز به فعل درخواست + اسم خطرناک
+    /(?:چگونه|چطور|روش|طرز|آموزش|how\s+to|teach\s+me)\s+(?:ساخت|درست\s*کردن|بسازم|بسازیم|build|make|construct)\s+(?:بمب|مواد\s*منفجره|سلاح\s*شیمیایی|بمب\s*اتمی|bomb|explosive|nerve\s+agent|weapon\s+of\s+mass)/,
+    // هک/دزدی حساب کاربری
+    /(?:هک|کرک|دزدیدن|دزدی|فیشینگ|hack|crack|steal|phish)\s+(?:رمز|پسورد|اکانت|حساب\s*کاربری|password|account|credential|token)/,
+    // خودکشی
+    /(?:روش|چگونه|چطور|آموزش|how\s+to|method\s+(?:of|for))\s+(?:خودکشی|خود\s*زنی|suicide|self[-\s]?harm)/,
+    // محتوای جنسی کودکان
+    /(?:پورنوگرافی|محتوای\s*جنسی|porn|sexual\s+content)\s+(?:کودک|نوجوان|زیر\s*سن|child|underage|minor)/
+  ];
   return {ok:!bad.some(r=>r.test(t))};
 }
 
@@ -97,7 +108,7 @@ function reqJson(url,opts={}){return new Promise((res,rej)=>{
 })}
 function getText(url,redirects=3){return new Promise((res,rej)=>{
   const u=new URL(url),lib=u.protocol==='https:'?https:http;
-  const r=lib.get(u,{headers:{'User-Agent':'Mozilla/5.0 (compatible; KavoshBot/4.0)','Accept-Language':'fa,en;q=0.8'},timeout:8000},x=>{
+  const r=lib.get(u,{headers:{'User-Agent':'Mozilla/5.0 (compatible; KavoshBot/4.2)','Accept-Language':'fa,en;q=0.8'},timeout:8000},x=>{
     if(x.statusCode>=300&&x.statusCode<400&&x.headers.location&&redirects>0){x.resume();return res(getText(new URL(x.headers.location,u).href,redirects-1))}
     if(x.statusCode<200||x.statusCode>=300){x.resume();return rej(new Error('HTTP '+x.statusCode))}
     let d='';x.setEncoding('utf8');x.on('data',c=>{d+=c;if(d.length>1200000)r.destroy()});x.on('end',()=>res(d));
@@ -156,7 +167,7 @@ function wantSearch(mode,text){
 async function ask(p,messages,opt){
   const key=process.env[keys[p]];
   if(!key)throw new Error('no key');
-  const safeKey=String(key).replace(/[^\x21-\x7E]/g,'').trim();
+  const safeKey=String(key).replace(/[^\u0021-\u007E]/g,'').trim();
   const {maxTokens,temperature}=opt;
   if(p==='anthropic'){
     const r=await reqJson('https://api.anthropic.com/v1/messages',{headers:{'x-api-key':safeKey,'anthropic-version':'2023-06-01'},body:{model:MODELS[p],max_tokens:maxTokens,temperature,messages:messages.filter(x=>x.role!=='system'),system:messages.find(x=>x.role==='system')?.content}});
@@ -175,8 +186,6 @@ async function ask(p,messages,opt){
   const r=await reqJson(url,{headers,body:{model:MODELS[p],messages,max_tokens:maxTokens,temperature}});
   return r.choices?.[0]?.message?.content||'';
 }
-
-// parallel call: first successful answer wins, others aborted implicitly by socket timeout
 async function askParallel(providers,messages,opt){
   if(!providers.length)throw new Error('no provider');
   const tasks=providers.map(p=>
@@ -216,18 +225,25 @@ async function chat(body){
     :[{role:'user',content:clean(body.message)}];
   const user=msgs.at(-1)?.content||'';
   if(!user)return {answer:'پیامی دریافت نشد.'};
-  if(!safety(user).ok)return {answer:'نمی‌توانم دستورالعمل عملی برای آسیب‌زدن یا سوءاستفاده ارائه کنم، اما می‌توانم دربارهٔ جنبهٔ آموزشی، ایمنی یا پیشگیری آن توضیح بدهم.'};
 
-  // 1) local math
-  const c=solveMath(user);
-  if(c!==null)return {answer:c,provider:'math'};
+  // ✅ مرحله ۱: اول ریاضی محلی — سریع و بدون فیلتر
+  let mathResult=null;
+  try{ mathResult=solveMath(user); }catch(e){ mathResult=null; }
+  if(mathResult!==null && typeof mathResult==='string' && mathResult.trim()){
+    return {answer:mathResult,provider:'math'};
+  }
 
-  // 2) cache
+  // ✅ مرحله ۲: حالا safety — فقط برای مسیر AI
+  if(!safety(user).ok){
+    return {answer:'نمی‌توانم در این مورد دستورالعمل عملیاتی بدهم، ولی می‌توانم جنبهٔ آموزشی یا ایمنی‌اش را توضیح دهم.'};
+  }
+
+  // مرحله ۳: کش
   const ck='c:'+edition+':'+user;
   const cached=CACHE.get(ck);
   if(cached)return {...cached,provider:'cache'};
 
-  // 3) AI fallthrough
+  // مرحله ۴: AI
   const isMath=looksMath(user);
   if(isMath){
     t={...t,temperature:0.2,maxTokens:Math.max(t.maxTokens,2000),
@@ -239,19 +255,18 @@ async function chat(body){
   if(wantIt){
     sources=await webSearch(user,t.results);
     if(sources.length){
-      searchCtx='\n\nنتایج جستجوی وب (امروز: '+new Date().toISOString().slice(0,10)+'). برای اطلاعات به‌روز از این نتایج استفاده کن، در متن به منبع اشاره کن و اگر نتایج کافی نیستند صادقانه بگو:\n'+
-        sources.map((s,i)=>`[${i+1}] ${s.title}\n${s.snippet}\n${s.url}`).join('\n\n');
+      searchCtx='\n\nنتایج جستجوی وب (امروز: '+new Date().toISOString().slice(0,10)+'):\n'+
+        sources.map((s,i)=>'['+(i+1)+'] '+s.title+'\n'+s.snippet+'\n'+s.url).join('\n\n');
     }
   }
 
   const mem=searchCtx?[]:jsonFile(MEMORY,[]).slice(0,t.memory);
-  const memCtx=mem.length?'\nیادداشت‌های مرتبط قبلی:\n'+mem.map(x=>`- ${x.q} → ${String(x.a).slice(0,300)}`).join('\n'):'';
+  const memCtx=mem.length?'\nیادداشت‌های مرتبط قبلی:\n'+mem.map(x=>'- '+x.q+' → '+String(x.a).slice(0,300)).join('\n'):'';
   const all=[{role:'system',content:systemPrompt(edition)+'\nسبک پاسخ: '+t.style+searchCtx+memCtx},...msgs];
 
   const usable=ORDER.filter(configured);
   if(!usable.length)return {answer:'کاوش فعلاً به موتور هوش مصنوعی وصل نیست. مدیر سایت باید یک API Key در تنظیمات سرور (Environment) قرار دهد.',sources};
 
-  // parallel first-2 for speed, fall back to rest
   const batch=usable.slice(0,2), rest=usable.slice(2);
   let winner=null;
   try{ winner=await askParallel(batch,all,t); }
@@ -268,8 +283,6 @@ async function chat(body){
   if(!answer)return {answer:'پاسخ خالی از سرویس دریافت شد. دوباره تلاش کن.',sources};
 
   const payload={answer,sources,searched:sources.length>0,provider:winner.p};
-
-  // cache & learn
   CACHE.set(ck,{answer,sources,searched:payload.searched});
   if(body.learn!==false&&!searchCtx){
     const arr=jsonFile(MEMORY,[]);
@@ -332,7 +345,7 @@ const server=http.createServer((req,res)=>{
   let pn;try{pn=decodeURIComponent(new URL(req.url,'http://localhost').pathname)}catch{return send(res,400,{error:'bad url'})}
   if(pn.length>1)pn=pn.replace(/\/+$/,'');
 
-  if(pn==='/api/health')return send(res,200,{ok:true,name:'Kavosh',version:'4.0.0',editions:Object.fromEntries(Object.keys(POWER).map(k=>[k,POWER[k]+'%'])),providers:ORDER.filter(configured),search:process.env.TAVILY_API_KEY?'tavily':'duckduckgo+wikipedia',image:configured('openai')?'openai':'pollinations',video:process.env.REPLICATE_API_TOKEN?'replicate':'off',cache:{chat:CACHE.m.size,search:SEARCH_CACHE.m.size,tr:TR_CACHE.m.size}});
+  if(pn==='/api/health')return send(res,200,{ok:true,name:'Kavosh',version:'4.2.0',editions:Object.fromEntries(Object.keys(POWER).map(k=>[k,POWER[k]+'%'])),providers:ORDER.filter(configured),search:process.env.TAVILY_API_KEY?'tavily':'duckduckgo+wikipedia',image:configured('openai')?'openai':'pollinations',video:process.env.REPLICATE_API_TOKEN?'replicate':'off',cache:{chat:CACHE.m.size,search:SEARCH_CACHE.m.size,tr:TR_CACHE.m.size}});
 
   if(pn==='/api/cache/clear'&&req.method==='POST'){CACHE.clear();SEARCH_CACHE.clear();TR_CACHE.clear();return send(res,200,{ok:true})}
 
@@ -372,5 +385,5 @@ const server=http.createServer((req,res)=>{
     res.writeHead(200,{'Content-Type':CT[path.extname(p)]||'application/octet-stream'});res.end(d);
   });
 });
-if(require.main===module)server.listen(PORT,'0.0.0.0',()=>console.log(`Kavosh 4.0 running on http://localhost:${PORT}`));
+if(require.main===module)server.listen(PORT,'0.0.0.0',()=>console.log(`Kavosh 4.2 running on http://localhost:${PORT}`));
 module.exports={tune,webSearch,wantSearch,chat};

@@ -1,5 +1,5 @@
 'use strict';
-// Kavosh Advanced Math Engine v4.1
+// Kavosh Advanced Math Engine v4.2
 // Persian/English arithmetic, algebra, calculus, trig, matrices, statistics.
 // No eval(). Symbolic math. Returns null when unsure -> falls through to AI.
 
@@ -24,13 +24,13 @@ const REPL=[
   [word('\u062C\u0630\u0631|\u0631\u06CC\u0634\u0647\\s*\u062F\u0648\u0645|\u0631\u06CC\u0634\u0647|square\\s+root\\s+of|sqrt'),'sqrt'],
 ];
 
-const BS=String.fromCharCode(92);   // backslash
+const BS=String.fromCharCode(92);
 
 // ---------------- helpers ----------------
 function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){const t=b;b=a%b;a=t}return a}
 function lcm(a,b){return Math.abs(a*b)/gcd(a,b)}
 function factorial(n){
-  if(!Number.isInteger(n)||n<0)throw new MathMsg('\u0641\u0627\u06A9\u062A\u0648\u0631\u06CC\u0644 \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC \u0639\u062F\u062F \u0635\u062D\u06CC\u062D \u0645\u0646\u0641\u06CC \u062A\u0639\u0631\u06CC\u0641 \u0645\u06CC\u200c\u0634\u0648\u062F.');
+  if(!Number.isInteger(n)||n<0)throw new MathMsg('\u0641\u0627\u06A9\u062A\u0648\u0631\u06CC\u0644 \u0641\u0642\u0637 \u0628\u0631\u0627\u06CC \u0639\u062F\u062F \u0635\u062D\u06CC\u062D \u063A\u06CC\u0631\u0645\u0646\u0641\u06CC \u062A\u0639\u0631\u06CC\u0641 \u0645\u06CC\u200c\u0634\u0648\u062F.');
   if(n>170)throw new MathMsg('\u0627\u06CC\u0646 \u0641\u0627\u06A9\u062A\u0648\u0631\u06CC\u0644 \u0627\u0632 \u0645\u062D\u062F\u0648\u062F\u0647 \u0645\u062D\u0627\u0633\u0628\u0647 \u0628\u06CC\u0631\u0648\u0646 \u0627\u0633\u062A.');
   let r=1;for(let k=2;k<=n;k++)r*=k;return r;
 }
@@ -83,11 +83,20 @@ function tryLimit(text){
     return '\u062D\u062F: '+fmtNum(parseFloat(val.toPrecision(10)));
   }catch{return null}
 }
+
+// ---- NEW: آمار با پشتیبانی از «و»، «تا»، ویرگول فارسی ----
+function extractNumbers(str){
+  return (str.match(/-?\d+(?:\.\d+)?/g)||[]).map(Number).filter(Number.isFinite);
+}
 function tryStats(text){
-  const m=text.match(/(\u0645\u06CC\u0627\u0646\u06AF\u06CC\u0646|\u0645\u06CC\u0627\u0646\u0647|\u0645\u062C\u0645\u0648\u0639|\u062C\u0645\u0639|\u062D\u0627\u0635\u0644\s*\u0636\u0631\u0628|average|mean|median|sum|product)\s*(?:\u0627\u0639\u062F\u0627\u062F|\u0645\u062C\u0645\u0648\u0639\u0647|\u0644\u06CC\u0633\u062A)?\s*[:\-]?\s*([\d\s,\u060C.+\-]+)/i);
+  const m=text.match(/(\u0645\u06CC\u0627\u0646\u06AF\u06CC\u0646|\u0645\u06CC\u0627\u0646\u0647|\u0645\u062C\u0645\u0648\u0639|\u062C\u0645\u0639|\u062D\u0627\u0635\u0644\s*\u0636\u0631\u0628|average|mean|median|sum|product)\s*(?:\u0627\u0639\u062F\u0627\u062F|\u0645\u062C\u0645\u0648\u0639\u0647|\u0644\u06CC\u0633\u062A)?\s*[:\-]?\s*(.+)$/i);
   if(!m)return null;
-  const nums=(m[2].match(/-?\d+(?:\.\d+)?/g)||[]).map(Number).filter(Number.isFinite);
+  const rest=m[2];
+  const nums=extractNumbers(rest);
   if(nums.length<2)return null;
+  // اطمینان از این‌که چیز غیرعددی به‌جز جداکننده‌ها نیست
+  const cleaned=rest.replace(/-?\d+(?:\.\d+)?/g,'').replace(/[\s,\u060C\u0648\u062A\u0627\u0640\.]+/g,'');
+  if(cleaned.length>0)return null;
   const op=m[1].toLowerCase();
   const sum=nums.reduce((a,b)=>a+b,0);
   const prod=nums.reduce((a,b)=>a*b,1);
@@ -136,7 +145,7 @@ function trySequence(text){
 function tryDet(text){
   const m=text.match(/(?:\u062F\u062A\u0631\u0645\u06CC\u0646\u0627\u0646|determinant)\s*[:\-]?\s*\[([^\]]+)\]/i);
   if(!m)return null;
-  const nums=(m[1].match(/-?\d+(?:\.\d+)?/g)||[]).map(Number);
+  const nums=extractNumbers(m[1]);
   const n=Math.round(Math.sqrt(nums.length));
   if(n*n!==nums.length||(n!==2&&n!==3))return null;
   const M=[];for(let i=0;i<n;i++)M.push(nums.slice(i*n,(i+1)*n));
@@ -485,39 +494,25 @@ const SYM={
 function convSeg(s){
   const before=s;
 
-  // $$...$$
   s=s.replace(/\$\$([\s\S]+?)\$\$/g,function(m,a){return a.indexOf(BS)>=0?a:m;});
-  // \[...\]
   s=s.replace(new RegExp(BS+BS+'\\[([\\s\\S]+?)'+BS+BS+'\\]','g'),'$1');
-  // \(...\)
   s=s.replace(new RegExp(BS+BS+'\\(([\\s\\S]+?)'+BS+BS+'\\)','g'),'$1');
-  // $...$
   s=s.replace(/\$([^$\n]+?)\$/g,function(m,a){return a.indexOf(BS)>=0?a:m;});
 
   for(let k=0;k<3;k++){
-    // \frac{a}{b} or \dfrac / \tfrac
     s=s.replace(new RegExp(BS+BS+'[dt]?frac\\s*\\{([^{}]*)\\}\\s*\\{([^{}]*)\\}','g'),'($1)/($2)');
-    // \sqrt[n]{x}
     s=s.replace(new RegExp(BS+BS+'sqrt\\s*\\[([^\\]]*)\\]\\s*\\{([^{}]*)\\}','g'),'\u0631\u06cc\u0634\u0647 $1\u0627\u0645($2)');
-    // \sqrt{x}
     s=s.replace(new RegExp(BS+BS+'sqrt\\s*\\{([^{}]*)\\}','g'),'\u221a($1)');
-    // \text{...}
     s=s.replace(new RegExp(BS+BS+'text(?:bf|it|rm)?\\s*\\{([^{}]*)\\}','g'),'$1');
-    // \mathbf{...} etc
     s=s.replace(new RegExp(BS+BS+'(?:mathbf|mathrm|boxed|overline|bar)\\s*\\{([^{}]*)\\}','g'),'$1');
   }
 
-  // \left \right \big \Big \quad \qquad
   s=s.replace(new RegExp(BS+BS+'(?:left|right|big|Big|quad|qquad)\\b','g'),'');
-  // \, \; \!
   s=s.replace(new RegExp(BS+BS+'[,;!]','g'),' ');
-  // \<space>
   s=s.replace(new RegExp(BS+BS+' ','g'),' ');
 
-  // named symbols
   s=s.replace(new RegExp(BS+BS+'([A-Za-z]+)','g'),function(m,n){return SYM[n]!==undefined?SYM[n]:m;});
 
-  // ^2 -> superscript
   s=s.replace(/\^\{?(-?\d{1,3})\}?(?!\d)/g,function(m,d){
     let r='';
     for(let i=0;i<d.length;i++) r+= (SUP[d[i]]||d[i]);
@@ -533,7 +528,6 @@ function plainMath(text){
   return String(text||'').split(/(```[\s\S]*?```)/g).map(function(seg,i){return i%2?seg:convSeg(seg)}).join('');
 }
 
-// does the message look like a math problem for the AI?
 const MATH_HINT=/\u0645\u0639\u0627\u062F\u0644\u0647|\u0645\u0634\u062A\u0642|\u0627\u0646\u062A\u06AF\u0631\u0627\u0644|\u062D\u062F\s|\u0644\u06AF\u0627\u0631\u06CC\u062A\u0645|\u0645\u062B\u0644\u062B\u0627\u062A|\u0627\u062D\u062A\u0645\u0627\u0644|\u0645\u0627\u062A\u0631\u06CC\u0633|\u062F\u062A\u0631\u0645\u06CC\u0646\u0627\u0646|\u0647\u0646\u062F\u0633\u0647|\u0645\u0633\u0627\u062D\u062A|\u062D\u062C\u0645|\u0645\u062D\u06CC\u0637|\u0631\u06CC\u0627\u0636\u06CC|\u0633\u06CC\u0646\u0648\u0633|\u06A9\u0633\u06CC\u0646\u0648\u0633|\u062A\u0627\u0646\u0698\u0627\u0646\u062A|\u0627\u062A\u062D\u0627\u062F|\u062A\u062C\u0632\u06CC\u0647|\u0633\u0627\u062F\u0647\s*\u06A9\u0646|\u062D\u0644\s*\u06A9\u0646|\u0627\u062B\u0628\u0627\u062A|\u062F\u0646\u0628\u0627\u0644\u0647|\u0633\u0631\u06CC|\u062F\u0633\u062A\u06AF\u0627\u0647|\u0645\u062C\u0647\u0648\u0644|\bsolve\b|equation|derivative|integral|limit|probability|matrix|simplify|factor|prove|area|volume|\d\s*[-+*\/^=]\s*[\dx(]/i;
 const looksMath=t=>MATH_HINT.test(toLatin(String(t||'')));
 
