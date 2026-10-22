@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>کاوش — خوش آمدید</title>
+<link rel="stylesheet" href="/intro.css">
+</head>
+<body>
+
+<!-- ابرها -->
+<div class="sky">
+  <div class="cloud c1"></div>
+  <div class="cloud c2"></div>
+  <div class="cloud c3"></div>
+  <div class="cloud c4"></div>
+  <div class="cloud c5"></div>
+  <div class="cloud c6"></div>
+</div>
+<div class="vignette"></div>
+<div class="grain"></div>
+
+<!-- دروازه صدا (کلیک اولیه برای فعال‌سازی صدا) -->
+<div id="gate">
+  <button id="enter" class="enter-btn" aria-label="ورود">
+    <span class="arrow">▶</span>
+    <span>برای شروع کلیک کنید</span>
+  </button>
+  <p class="hint-gate">صدا را روشن کنید تا تجربه کامل داشته باشید</p>
+</div>
+
+<!-- صحنه اصلی -->
+<main id="stage" class="stage" hidden>
+  <div class="brand-wrap">
+    <h1 class="brand">کاوش</h1>
+    <div class="shimmer"></div>
+  </div>
+  <p class="tagline">دستیار هوشمند شما</p>
+
+  <div class="newcomer">
+    <span class="pulse"></span>
+    <span>انگار یک کاربر جدید اومده</span>
+  </div>
+
+  <div class="actions">
+    <div id="g_id_onload"
+         data-client_id="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+         data-callback="onGoogleSignIn"
+         data-auto_prompt="false"></div>
+    <div class="g_id_signin"
+         data-type="standard"
+         data-shape="pill"
+         data-theme="filled_black"
+         data-text="signin_with_google"
+         data-size="large"
+         data-logo_alignment="left"></div>
+
+    <button id="skip" class="skip-btn">فعلاً بدون حساب ادامه می‌دم</button>
+  </div>
+
+  <p class="privacy">
+    ورود با گوگل امن است. شماره موبایل شما هرگز درخواست نمی‌شود.
+  </p>
+</main>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="/intro.js"></script>
+</body>
+</html>
