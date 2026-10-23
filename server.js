@@ -1,5 +1,5 @@
 'use strict';
-const http=require('http'),https=require('https'),fs=require('fs'),path=require('path');
+const http=require('http'),https=require('https'),fs=require('fs'),path=require('path'),crypto=require('crypto');
 
 // ---------- .env loader ----------
 function loadDotEnv(){
@@ -329,6 +329,36 @@ async function videoStatus(id){
   return {status:'working'};
 }
 
+// ---------- secure manager/deputy sign-in ----------
+const AUTH_TTL_MS=8*60*60*1000;
+const authSessions=new Map();
+const authAttempts=new Map();
+const MANAGER_ID=String(process.env.KAVOSH_MANAGER_ID||'KAV-MGR-0001').trim();
+const MANAGER_CODE=String(process.env.KAVOSH_MANAGER_CODE||'').trim();
+const DEPUTY_CODES=new Map();
+for(const item of String(process.env.KAVOSH_DEPUTY_CODES||'').split(',')){
+  const i=item.indexOf(':'); if(i>0){const id=item.slice(0,i).trim();const code=item.slice(i+1).trim();if(id&&code)DEPUTY_CODES.set(id,code);}
+}
+function safeEqual(a,b){
+  const aa=Buffer.from(String(a)); const bb=Buffer.from(String(b));
+  return aa.length===bb.length && crypto.timingSafeEqual(aa,bb);
+}
+function clientIp(req){return String(req.headers['x-forwarded-for']||req.socket.remoteAddress||'unknown').split(',')[0].trim();}
+function authRateLimited(ip){
+  const now=Date.now(); let v=authAttempts.get(ip);
+  if(!v||now-v.start>15*60*1000){v={start:now,count:0};authAttempts.set(ip,v);}
+  v.count++; return v.count>10;
+}
+function parseCookies(req){const out={};for(const p of String(req.headers.cookie||'').split(';')){const i=p.indexOf('=');if(i>0)out[p.slice(0,i).trim()]=decodeURIComponent(p.slice(i+1).trim());}return out;}
+function currentSession(req){
+  const token=parseCookies(req).kavosh_session; if(!token)return null;
+  const sess=authSessions.get(token); if(!sess)return null;
+  if(sess.expires<Date.now()){authSessions.delete(token);return null;} return {token,...sess};
+}
+function setSessionCookie(req,res,token){const secure=String(req.headers['x-forwarded-proto']||'').includes('https');res.setHeader('Set-Cookie',`kavosh_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${Math.floor(AUTH_TTL_MS/1000)}${secure?'; Secure':''}`);}
+function clearSessionCookie(res){res.setHeader('Set-Cookie','kavosh_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');}
+function readBody(req,limit=20000){return new Promise((resolve,reject)=>{let raw='';req.on('data',c=>{raw+=c;if(raw.length>limit){reject(new Error('درخواست بیش از حد بزرگ است'));req.destroy();}});req.on('end',()=>{try{resolve(JSON.parse(raw||'{}'));}catch{reject(new Error('JSON نامعتبر است'));}});req.on('error',reject);});}
+
 // ---------- server ----------
 function send(res,status,obj){
   res.writeHead(status,{
@@ -345,6 +375,28 @@ const server=http.createServer((req,res)=>{
   let pn;try{pn=decodeURIComponent(new URL(req.url,'http://localhost').pathname)}catch{return send(res,400,{error:'bad url'})}
   if(pn.length>1)pn=pn.replace(/\/+$/,'');
 
+  if(pn==='/api/auth/login'&&req.method==='POST'){
+    const ip=clientIp(req);
+    if(authRateLimited(ip))return send(res,429,{ok:false,error:'تلاش‌های زیاد؛ ۱۵ دقیقه دیگر دوباره امتحان کن.'});
+    readBody(req).then(body=>{
+      const account=String(body.account||'').trim(); const credential=String(body.credential||'').trim();
+      let role='';
+      if(MANAGER_CODE && account===MANAGER_ID && safeEqual(credential,MANAGER_CODE)) role='manager';
+      else if(DEPUTY_CODES.has(account) && safeEqual(credential,DEPUTY_CODES.get(account))) role='deputy';
+      if(!role)return send(res,401,{ok:false,error:'شناسه یا کد ورود نادرست است.'});
+      const token=crypto.randomBytes(32).toString('base64url');
+      authSessions.set(token,{role,account,created:Date.now(),expires:Date.now()+AUTH_TTL_MS});
+      setSessionCookie(req,res,token);
+      return send(res,200,{ok:true,role,account,expiresIn:AUTH_TTL_MS});
+    }).catch(e=>send(res,400,{ok:false,error:e.message||'درخواست نامعتبر است.'}));
+    return;
+  }
+  if(pn==='/api/auth/me'&&req.method==='GET'){
+    const sess=currentSession(req); return send(res,200,sess?{ok:true,authenticated:true,role:sess.role,account:sess.account,expiresAt:sess.expires}:{ok:true,authenticated:false});
+  }
+  if(pn==='/api/auth/logout'&&req.method==='POST'){
+    const sess=currentSession(req); if(sess)authSessions.delete(sess.token); clearSessionCookie(res); return send(res,200,{ok:true});
+  }
   if(pn==='/api/health')return send(res,200,{ok:true,name:'Kavosh',version:'4.2.0',editions:Object.fromEntries(Object.keys(POWER).map(k=>[k,POWER[k]+'%'])),providers:ORDER.filter(configured),search:process.env.TAVILY_API_KEY?'tavily':'duckduckgo+wikipedia',image:configured('openai')?'openai':'pollinations',video:process.env.REPLICATE_API_TOKEN?'replicate':'off',cache:{chat:CACHE.m.size,search:SEARCH_CACHE.m.size,tr:TR_CACHE.m.size}});
 
   if(pn==='/api/cache/clear'&&req.method==='POST'){CACHE.clear();SEARCH_CACHE.clear();TR_CACHE.clear();return send(res,200,{ok:true})}
