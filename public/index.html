@@ -119,36 +119,140 @@
 
   <footer>کاوش AI 2.0 · برای تجربهٔ بهتر، از مرورگر به‌روز استفاده کن.</footer>
 </div>
-<script>
+<script><script>
 (() => {
   const views = [...document.querySelectorAll('.view')];
+
   function showView(id) {
     views.forEach(v => v.classList.toggle('active', v.id === id));
-    if (id) document.getElementById(id)?.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start'});
-    else window.scrollTo({top:0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+
+    if (id) {
+      document.getElementById(id)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }
-  document.querySelectorAll('[data-open]').forEach(btn => btn.addEventListener('click', () => showView(btn.dataset.open)));
-  document.querySelectorAll('[data-home]').forEach(btn => btn.addEventListener('click', () => showView(null)));
-  document.querySelectorAll('[data-role-form]').forEach(form => form.addEventListener('submit', async e => {
-    e.preventDefault();
-    const role = form.dataset.roleForm;
-    const status = document.getElementById(role + 'Status');
-    const submit = form.querySelector('button[type="submit"]');
-    const data = new FormData(form);
-    status.textContent = 'در حال بررسی امن ورود…'; submit.disabled = true;
+
+  document.querySelectorAll('[data-open]').forEach(btn => {
+    btn.addEventListener('click', () => showView(btn.dataset.open));
+  });
+
+  document.querySelectorAll('[data-home]').forEach(btn => {
+    btn.addEventListener('click', () => showView(null));
+  });
+
+  // ورود مدیر و معاون؛ بدون تغییر مسیر قبلی
+  document.querySelectorAll('[data-role-form]').forEach(form => {
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+
+      const role = form.dataset.roleForm;
+      const status = document.getElementById(role + 'Status');
+      const submit = form.querySelector('button[type="submit"]');
+      const data = new FormData(form);
+
+      status.textContent = 'در حال بررسی ورود…';
+      submit.disabled = true;
+
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            account: data.get('account'),
+            credential: data.get('credential')
+          })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.ok) {
+          throw new Error(result.error || 'ورود انجام نشد.');
+        }
+
+        status.textContent =
+          `ورود موفق بود. نقش: ${
+            result.role === 'manager' ? 'مدیر' : 'معاون'
+          } · شناسه: ${result.account}`;
+
+        form.reset();
+      } catch (err) {
+        status.textContent =
+          err.message || 'ارتباط با سرور برقرار نشد.';
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  });
+
+  // اتصال واقعی گفت‌وگو به API کاوش
+  const sendButton = document.getElementById('sendChat');
+  const promptInput = document.getElementById('chatPrompt');
+  const chatStatus = document.getElementById('chatStatus');
+
+  sendButton.addEventListener('click', async () => {
+    const prompt = promptInput.value.trim();
+
+    if (!prompt) {
+      chatStatus.textContent = 'اول پیامت را بنویس.';
+      return;
+    }
+
+    sendButton.disabled = true;
+    chatStatus.textContent = 'کاوش در حال فکر کردن است…';
+
     try {
-      const response = await fetch('/api/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({account:data.get('account'),credential:data.get('credential')})});
-      const result = await response.json();
-      if (!response.ok || !result.ok) throw new Error(result.error || 'ورود انجام نشد.');
-      status.textContent = `ورود موفق بود. نقش: ${result.role === 'manager' ? 'مدیر' : 'معاون'} · شناسه: ${result.account} · نشست تا ۸ ساعت معتبر است.`;
-      form.reset();
-    } catch (err) { status.textContent = err.message || 'ارتباط با سرور برقرار نشد.'; }
-    finally { submit.disabled = false; }
-  }));
-  document.getElementById('sendChat').addEventListener('click', () => {
-    const prompt = document.getElementById('chatPrompt').value.trim();
-    const status = document.getElementById('chatStatus');
-    status.textContent = prompt ? 'رابط چت آماده است، اما اتصال API در این نسخهٔ صفحه هنوز پیاده‌سازی نشده است.' : 'اول پیامت را بنویس.';
+      const response = await fetch('/api/ai-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: prompt,
+          edition: 'astara'
+        })
+      });
+
+      let result;
+
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error('پاسخ سرور قابل خواندن نیست.');
+      }
+
+      if (!response.ok || result.ok === false) {
+        throw new Error(
+          result.error || 'ارتباط با سرویس هوش مصنوعی ناموفق بود.'
+        );
+      }
+
+      if (!result.answer) {
+        throw new Error('کاوش پاسخی دریافت نکرد.');
+      }
+
+      chatStatus.textContent = 'کاوش:\n' + result.answer;
+
+    } catch (err) {
+      chatStatus.textContent =
+        'خطا: ' + (err.message || 'اتصال به سرور برقرار نشد.');
+    } finally {
+      sendButton.disabled = false;
+    }
+  });
+
+  // ارسال پیام با کلید Ctrl+Enter
+  promptInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault();
+      sendButton.click();
+    }
+  });
+})();
+</script>
   });
 })();
 </script>
