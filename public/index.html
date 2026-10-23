@@ -1,69 +1,156 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fa" dir="rtl">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>کاوش — خوش آمدید</title>
-<link rel="stylesheet" href="/intro.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#080d22">
+  <title>کاوش AI 2.0</title>
+  <style>
+    :root{color-scheme:dark;--bg:#070b1b;--panel:rgba(15,23,52,.78);--line:rgba(158,180,255,.2);--text:#f4f6ff;--muted:#aeb8d8;--blue:#7798ff;--cyan:#69e1ed;--purple:#b18aff}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;font-family:Tahoma,"Segoe UI",sans-serif;color:var(--text);background:radial-gradient(ellipse at 50% -10%,#253b7b 0,transparent 45%),radial-gradient(circle at 12% 75%,#202054 0,transparent 30%),var(--bg);overflow-x:hidden}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.55;background-image:radial-gradient(2px 2px at 12% 18%,#fff 45%,transparent 55%),radial-gradient(1px 1px at 74% 23%,#fff 45%,transparent 55%),radial-gradient(2px 2px at 87% 71%,#b9d5ff 45%,transparent 55%),radial-gradient(1px 1px at 31% 81%,#fff 45%,transparent 55%),radial-gradient(1px 1px at 56% 52%,#fff 45%,transparent 55%);background-size:260px 220px}
+    .wrap{position:relative;width:min(1050px,calc(100% - 28px));margin:0 auto;padding:34px 0 50px}
+    header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:54px}
+    .brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:22px}
+    .logo{display:grid;place-items:center;width:44px;height:44px;border-radius:15px;background:linear-gradient(135deg,var(--blue),var(--purple));box-shadow:0 0 32px #7e8fff50;font-size:23px}
+    .badge{font-size:12px;color:#c8d3ff;border:1px solid var(--line);border-radius:99px;padding:8px 12px}
+    .hero{text-align:center;max-width:760px;margin:0 auto 36px}
+    .eyebrow{display:inline-block;color:var(--cyan);font-size:13px;letter-spacing:.4px;margin-bottom:15px}
+    h1{font-size:clamp(32px,6vw,58px);line-height:1.2;margin:0 0 16px;letter-spacing:-1.5px}
+    h1 span{background:linear-gradient(90deg,#8ab0ff,#b7a0ff,#78e7ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .hero p{color:var(--muted);font-size:16px;line-height:1.9;margin:0}
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:32px}
+    .card{position:relative;display:flex;flex-direction:column;min-height:235px;padding:23px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(145deg,rgba(24,35,74,.86),rgba(10,15,35,.9));box-shadow:0 16px 50px #0002;transition:transform .2s,border-color .2s}
+    .card:hover{transform:translateY(-4px);border-color:#849bff80}
+    .icon{width:48px;height:48px;display:grid;place-items:center;border-radius:16px;background:#819aff1c;border:1px solid #9fb0ff25;font-size:24px;margin-bottom:18px}
+    .card h2{font-size:19px;margin:0 0 10px}
+    .card p{color:var(--muted);font-size:13px;line-height:1.85;margin:0 0 20px;flex:1}
+    button{font:inherit;cursor:pointer}
+    .btn{width:100%;border:0;border-radius:12px;padding:12px 15px;color:#091027;font-weight:800;background:linear-gradient(100deg,#93b2ff,#7ce3ed);transition:filter .2s}
+    .btn:hover{filter:brightness(1.08)}
+    .btn.secondary{color:#eef1ff;background:rgba(130,150,230,.13);border:1px solid var(--line)}
+    .btn.purple{color:white;background:linear-gradient(100deg,#8d8dff,#bc8dff)}
+    .note{margin:22px auto 0;max-width:780px;border:1px solid #e9bd6b35;background:#b8841b12;border-radius:14px;padding:13px 16px;color:#e7d8ae;font-size:12px;line-height:1.9}
+    .view{display:none;margin:26px auto 0;max-width:760px;border:1px solid var(--line);background:var(--panel);backdrop-filter:blur(16px);padding:24px;border-radius:22px}
+    .view.active{display:block;animation:rise .25s ease-out}
+    @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .view h2{margin:0 0 10px;font-size:22px}.view .desc{color:var(--muted);font-size:13px;line-height:1.8}
+    .form{display:grid;gap:12px;margin-top:18px}
+    input{width:100%;border:1px solid var(--line);background:#080e25;color:white;border-radius:11px;padding:13px;font:inherit}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.actions .btn{flex:1;min-width:130px}
+    .status{margin-top:14px;font-size:13px;line-height:1.8;color:#f0d79b}
+    .chatbox{display:grid;gap:12px;margin-top:18px}
+    textarea{width:100%;min-height:100px;resize:vertical;border:1px solid var(--line);background:#080e25;color:white;border-radius:12px;padding:13px;font:inherit}
+    footer{text-align:center;color:#7885ab;font-size:12px;margin-top:42px}
+    @media(max-width:760px){header{margin-bottom:38px}.grid{grid-template-columns:1fr}.card{min-height:0}.hero p{font-size:14px}.wrap{padding-top:20px}.badge{font-size:10px}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+  </style>
 </head>
 <body>
+<div class="wrap">
+  <header>
+    <div class="brand"><span class="logo">✦</span><span>کاوش <span style="color:#a9baff">AI 2.0</span></span></div>
+    <span class="badge">دستیار هوشمند و سامانهٔ آموزشی</span>
+  </header>
 
-<!-- ابرها -->
-<div class="sky">
-  <div class="cloud c1"></div>
-  <div class="cloud c2"></div>
-  <div class="cloud c3"></div>
-  <div class="cloud c4"></div>
-  <div class="cloud c5"></div>
-  <div class="cloud c6"></div>
+  <section class="hero">
+    <span class="eyebrow">یک فضای هوشمند برای یادگیری و همکاری</span>
+    <h1>به جهان <span>کاوش</span> خوش آمدی</h1>
+    <p>برای ادامه، بخش مناسب خودت را انتخاب کن. گفت‌وگوی هوش مصنوعی و ورود نقش‌های مدیریتی از همین صفحه در دسترس‌اند.</p>
+  </section>
+
+  <section class="grid" aria-label="انتخاب بخش">
+    <article class="card">
+      <div class="icon">✧</div><h2>گفت‌وگو با هوش مصنوعی</h2>
+      <p>پرسش و پاسخ، کمک در یادگیری و ابزارهای هوشمند کاوش.</p>
+      <button class="btn" data-open="chat">ورود به گفت‌وگو</button>
+    </article>
+    <article class="card">
+      <div class="icon">🛡️</div><h2>ورود مدیر</h2>
+      <p>برای مدیریت کاربران، تأیید درخواست‌ها، اشتراک‌ها و تنظیمات سامانه.</p>
+      <button class="btn purple" data-open="manager">ورود مدیر</button>
+    </article>
+    <article class="card">
+      <div class="icon">🏫</div><h2>ورود معاون</h2>
+      <p>برای ثبت گزارش‌های دانش‌آموزان و پیگیری موارد ارجاع‌شده.</p>
+      <button class="btn secondary" data-open="deputy">ورود معاون</button>
+    </article>
+  </section>
+
+  <div class="note">
+    ورود مدیر و ۸ معاون از طریق سرور بررسی می‌شود. کدهای محرمانه را در فایل .env نگه دار و هرگز در GitHub عمومی منتشر نکن.
+  </div>
+
+  <section id="chat" class="view" aria-live="polite">
+    <h2>گفت‌وگو با کاوش</h2>
+    <p class="desc">این بخش رابط اولیه است. برای فعال‌شدن ارسال پیام باید به مسیر API چتِ نسخهٔ فعلی سرور متصل شود.</p>
+    <div class="chatbox">
+      <textarea id="chatPrompt" placeholder="پیامت را بنویس…"></textarea>
+      <button class="btn" id="sendChat">ارسال پیام</button>
+      <div id="chatStatus" class="status" role="status"></div>
+    </div>
+    <div class="actions"><button class="btn secondary" data-home>بازگشت به صفحهٔ اول</button></div>
+  </section>
+
+  <section id="manager" class="view" aria-live="polite">
+    <h2>ورود مدیر</h2>
+    <p class="desc">شناسهٔ مدیر و کد محرمانه را وارد کن. کد در مرورگر ذخیره نمی‌شود و سرور آن را بررسی می‌کند.</p>
+    <form class="form" data-role-form="manager">
+      <input name="account" autocomplete="username" placeholder="شناسهٔ مدیر" required>
+      <input name="credential" type="password" autocomplete="current-password" placeholder="رمز عبور یا کد تأیید" required>
+      <button class="btn purple" type="submit">بررسی ورود</button>
+    </form>
+    <div class="status" id="managerStatus" role="status"></div>
+    <div class="actions"><button class="btn secondary" data-home>بازگشت به صفحهٔ اول</button></div>
+  </section>
+
+  <section id="deputy" class="view" aria-live="polite">
+    <h2>ورود معاون</h2>
+    <p class="desc">شناسهٔ معاون و کد محرمانهٔ اختصاصی را وارد کن. برای معاونان شناسه‌های KAV-DEP-01 تا KAV-DEP-08 تعریف شده‌اند.</p>
+    <form class="form" data-role-form="deputy">
+      <input name="account" autocomplete="username" placeholder="شناسهٔ معاون" required>
+      <input name="credential" type="password" autocomplete="current-password" placeholder="رمز عبور یا کد تأیید" required>
+      <button class="btn" type="submit">بررسی ورود</button>
+    </form>
+    <div class="status" id="deputyStatus" role="status"></div>
+    <div class="actions"><button class="btn secondary" data-home>بازگشت به صفحهٔ اول</button></div>
+  </section>
+
+  <footer>کاوش AI 2.0 · برای تجربهٔ بهتر، از مرورگر به‌روز استفاده کن.</footer>
 </div>
-<div class="vignette"></div>
-<div class="grain"></div>
-
-<!-- دروازه صدا (کلیک اولیه برای فعال‌سازی صدا) -->
-<div id="gate">
-  <button id="enter" class="enter-btn" aria-label="ورود">
-    <span class="arrow">▶</span>
-    <span>برای شروع کلیک کنید</span>
-  </button>
-  <p class="hint-gate">صدا را روشن کنید تا تجربه کامل داشته باشید</p>
-</div>
-
-<!-- صحنه اصلی -->
-<main id="stage" class="stage" hidden>
-  <div class="brand-wrap">
-    <h1 class="brand">کاوش</h1>
-    <div class="shimmer"></div>
-  </div>
-  <p class="tagline">دستیار هوشمند شما</p>
-
-  <div class="newcomer">
-    <span class="pulse"></span>
-    <span>انگار یک کاربر جدید اومده</span>
-  </div>
-
-  <div class="actions">
-    <div id="g_id_onload"
-         data-client_id="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
-         data-callback="onGoogleSignIn"
-         data-auto_prompt="false"></div>
-    <div class="g_id_signin"
-         data-type="standard"
-         data-shape="pill"
-         data-theme="filled_black"
-         data-text="signin_with_google"
-         data-size="large"
-         data-logo_alignment="left"></div>
-
-    <button id="skip" class="skip-btn">فعلاً بدون حساب ادامه می‌دم</button>
-  </div>
-
-  <p class="privacy">
-    ورود با گوگل امن است. شماره موبایل شما هرگز درخواست نمی‌شود.
-  </p>
-</main>
-
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="/intro.js"></script>
+<script>
+(() => {
+  const views = [...document.querySelectorAll('.view')];
+  function showView(id) {
+    views.forEach(v => v.classList.toggle('active', v.id === id));
+    if (id) document.getElementById(id)?.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start'});
+    else window.scrollTo({top:0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+  }
+  document.querySelectorAll('[data-open]').forEach(btn => btn.addEventListener('click', () => showView(btn.dataset.open)));
+  document.querySelectorAll('[data-home]').forEach(btn => btn.addEventListener('click', () => showView(null)));
+  document.querySelectorAll('[data-role-form]').forEach(form => form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const role = form.dataset.roleForm;
+    const status = document.getElementById(role + 'Status');
+    const submit = form.querySelector('button[type="submit"]');
+    const data = new FormData(form);
+    status.textContent = 'در حال بررسی امن ورود…'; submit.disabled = true;
+    try {
+      const response = await fetch('/api/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({account:data.get('account'),credential:data.get('credential')})});
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || 'ورود انجام نشد.');
+      status.textContent = `ورود موفق بود. نقش: ${result.role === 'manager' ? 'مدیر' : 'معاون'} · شناسه: ${result.account} · نشست تا ۸ ساعت معتبر است.`;
+      form.reset();
+    } catch (err) { status.textContent = err.message || 'ارتباط با سرور برقرار نشد.'; }
+    finally { submit.disabled = false; }
+  }));
+  document.getElementById('sendChat').addEventListener('click', () => {
+    const prompt = document.getElementById('chatPrompt').value.trim();
+    const status = document.getElementById('chatStatus');
+    status.textContent = prompt ? 'رابط چت آماده است، اما اتصال API در این نسخهٔ صفحه هنوز پیاده‌سازی نشده است.' : 'اول پیامت را بنویس.';
+  });
+})();
+</script>
 </body>
 </html>
