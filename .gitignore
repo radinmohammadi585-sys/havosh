@@ -1,0 +1,4 @@
+.env
+CODES_PRIVATE_DO_NOT_UPLOAD.txt
+ai-memory.json
+node_modules/

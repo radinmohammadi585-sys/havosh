@@ -1,7 +1,7 @@
 {
-  "name": "kavosh",
-  "version": "3.4.0",
-  "description": "Kavosh AI assistant",
+  "name": "kavosh-ai-2",
+  "version": "2.0.0",
+  "description": "Kavosh AI 2.0 website bundle",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
